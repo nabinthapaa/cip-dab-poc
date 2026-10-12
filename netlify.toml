@@ -1,0 +1,22 @@
+# CIP POC · Netlify deployment (portal + API gateway; data in Supabase)
+# The portal is static; /api/* and /config.js are Netlify Functions.
+[build]
+  publish = "portal"
+  functions = "netlify/functions"
+  command = "echo 'static portal, nothing to build'"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Static responses only (function responses set their own headers)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"

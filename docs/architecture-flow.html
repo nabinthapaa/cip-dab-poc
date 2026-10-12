@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scenario 1 — Data API builder Live-Read Architecture · Client Intelligence Portal</title>
+<style>
+:root{--bg:#FFFFFF;--panel:#F7F8FA;--ink:#0F2439;--ink2:#33475B;--slate:#5B6B7F;--line:#C9D1DB;--accent:#2B579A;--accent2:#1F4172;--ok:#217346;--warn:#B7791F}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI","Aptos",Arial,sans-serif;font-size:15px;line-height:1.55;padding:30px 38px 60px}
+h1{font-family:"Segoe UI Semibold","Segoe UI",Arial,sans-serif;font-weight:600;font-size:27px;letter-spacing:-.01em}
+.eyebrow{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.sub{color:var(--ink2);font-size:14px;margin-top:6px;max-width:1050px}
+.dabnote{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);padding:12px 16px;margin-top:14px;max-width:1050px;font-size:13px;color:var(--ink2)}
+.dabnote b{color:var(--ink)}
+.stage{background:#fff;border:1px solid var(--line);margin-top:18px}
+.bar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:11px 16px;background:var(--panel)}
+.btn{font:inherit;background:var(--accent);color:#fff;border:0;padding:9px 20px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.btn:disabled{opacity:.55;cursor:default}
+#status{font-size:12.5px;color:var(--ink2);min-height:18px}
+svg{display:block;width:100%}
+.zl{font-size:10px;letter-spacing:.14em;fill:#7A8AA0}
+.bt{font-size:12.5px;font-weight:600;fill:#0F2439}
+.bs{font-size:9.6px;fill:#33475B}
+.proto{font-size:9px;fill:#7A8AA0;font-style:italic}
+.mono{font-family:Consolas,Menlo,monospace}
+rect.box.hl{stroke:#2B579A!important;stroke-width:2.2!important}
+.tile-flash{animation:tf 1.2s ease}
+@keyframes tf{0%{fill:#E7EEF8}100%{fill:#FFFFFF}}
+.legend{display:flex;gap:22px;flex-wrap:wrap;padding:11px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2)}
+.legend b{color:var(--ink)}
+.tabs{display:flex;gap:0;margin-top:18px;border-bottom:2px solid var(--line)}
+.tab{font:inherit;background:transparent;border:0;border-bottom:3px solid transparent;padding:10px 22px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;letter-spacing:.02em}
+.tab.on{color:var(--accent2);border-bottom-color:var(--accent)}
+.panel{display:none}.panel.on{display:block}
+.simband{background:#FDF6E7;border:1px solid #E4CFA0;border-left:3px solid #B7791F;padding:9px 14px;font-size:12.5px;color:#6B5416;margin:14px 0 0}
+.fbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-bottom:0;margin-top:14px}
+.fbar label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);display:block;margin-bottom:3px}
+.fbar select{font:inherit;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.fbar .cnt{margin-left:auto;font-size:12px;color:var(--ink2)}
+table.map{width:100%;border-collapse:collapse;font-size:11.8px;background:#fff;border:1px solid var(--line)}
+.map th{position:sticky;top:0;background:var(--ink);color:#fff;font-size:9.6px;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 9px;font-weight:600}
+.map td{padding:7px 9px;border-bottom:1px solid #E6EAF0;color:var(--ink2);vertical-align:top}
+.map tr:hover td{background:#F4F7FB}
+.map .mono{font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--ink)}
+.pl{display:inline-block;font-size:9.3px;letter-spacing:.04em;padding:2px 8px;border:1px solid transparent;white-space:nowrap}
+.pl-dig{background:#E7F0EA;color:#1C5A38;border-color:#BCD8C6}.pl-hyb{background:#FBF3E0;color:#7A5410;border-color:#E4CFA0}.pl-man{background:#F9E9E5;color:#8A2E1E;border-color:#E8C2B6}
+.pl-map{background:#E7F0EA;color:#1C5A38}.pl-par{background:#FBF3E0;color:#7A5410}.pl-tbc{background:#FBF3E0;color:#7A5410}.pl-gap{background:#F9E9E5;color:#8A2E1E}
+.sysgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:14px}
+.syscard{background:#fff;border:1px solid var(--line);padding:14px 16px}
+.syscard b{font-size:13.5px;color:var(--ink)}
+.syscard .r{font-size:12px;color:var(--ink2);margin-top:5px}
+.kpirow{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+.kpi{background:#fff;border:1px solid var(--line);padding:12px 18px;min-width:150px}
+.kpi b{font-size:22px;color:var(--ink)}
+.kpi span{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
+.legend span{display:flex;align-items:center;gap:7px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+</style>
+</head>
+<body>
+<div class="eyebrow">Client Intelligence Portal · Scenario 1 — our data, our systems · live-read pattern</div>
+<h1>Data API builder (DAB) — end-to-end technical flow</h1>
+<p class="sub">Enterprise view of the live-read path: source event → Fabric ingest → governed core (contract views + row-level security) → Data API builder → API Management → the portal. Press <b>Simulate source input</b> — or watch the loop — and follow one change from the ground to the glass.</p>
+<div class="dabnote"><div><b>What DAB is:</b> Microsoft <b>Data API builder</b> — an open-source, generally available engine that auto-generates secure REST and GraphQL endpoints directly from database views and stored procedures. One JSON configuration file, zero custom API code, free with no premium tier, deployed as a stateless container inside our own tenant. It replaces the custom middleware we would otherwise have to build for live reads.</div></div>
+
+<div class="tabs">
+  <button class="tab on" data-t="t-flow">Architecture flow</button>
+  <button class="tab" data-t="t-readme">README</button>
+  <button class="tab" data-t="t-map">Mapping</button>
+  <button class="tab" data-t="t-gaps">Gaps &amp; TBC</button>
+  <button class="tab" data-t="t-sys">Source Systems</button>
+</div>
+
+<div class="panel on" id="t-flow">
+<div class="stage">
+<div class="bar">
+  <button class="btn" id="go">Simulate source input</button>
+  <div id="status">Idle — ambient sync running. Auto-simulation every 11s.</div>
+</div>
+<svg viewBox="0 0 1500 596" id="ea">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10Z" fill="#5B6B7F"/></marker>
+  </defs>
+
+  <!-- TENANT BOUNDARY -->
+  <rect x="244" y="18" width="856" height="520" rx="4" fill="none" stroke="#8896A8" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="258" y="40" class="zl">WASAEL AZURE TENANT · UAE REGION</text>
+  <text x="1088" y="40" class="zl" text-anchor="end">ENTRA ID · PRIVATE ENDPOINTS · VNET</text>
+
+  <!-- SOURCES -->
+  <rect x="22" y="52" width="192" height="440" rx="4" fill="#F7F8FA" stroke="#C9D1DB"/>
+  <text x="36" y="76" class="zl">SOURCE SYSTEMS</text>
+  <g id="srcD365"><rect class="box" x="38" y="92" width="160" height="72" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <text x="50" y="114" class="bt">Dynamics 365</text><text x="50" y="132" class="bs">Finance · Procurement · HR</text><text x="50" y="147" class="bs mono">OData / Dataverse</text></g>
+  <g id="srcMRI"><rect class="box" x="38" y="180" width="160" height="72" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <text x="50" y="202" class="bt">MRI CAFM</text><text x="50" y="220" class="bs">Work orders · assets · HSE</text><text x="50" y="235" class="bs mono">SQL / API extract</text></g>
+  <g id="srcOD"><rect class="box" x="38" y="268" width="160" height="72" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <text x="50" y="290" class="bt">OneDrive / SharePoint</text><text x="50" y="308" class="bs">Governed templates · files</text><text x="50" y="323" class="bs mono">Graph API</text></g>
+  <g id="srcIoT"><rect class="box" x="38" y="356" width="160" height="72" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <text x="50" y="378" class="bt">IoT telemetry</text><text x="50" y="396" class="bs">Environmental sensors</text><text x="50" y="411" class="bs mono">MQTT → Event Hub</text></g>
+  <text x="36" y="478" class="bs" font-style="italic">Scenario 1 — every source is ours.</text>
+
+  <!-- FABRIC -->
+  <g id="bxFab"><rect class="box" x="262" y="176" width="146" height="150" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <rect x="262" y="176" width="146" height="26" rx="3" fill="#F0F3F7"/>
+    <text x="335" y="194" class="bt" text-anchor="middle">Microsoft Fabric</text>
+    <text x="335" y="226" class="bs" text-anchor="middle">Pipelines — scheduled</text>
+    <text x="335" y="243" class="bs" text-anchor="middle">Eventstream — near-live</text>
+    <text x="335" y="266" class="bs mono" text-anchor="middle">bronze → silver → gold</text>
+    <text x="335" y="290" class="bs" text-anchor="middle">one ingestion layer</text>
+    <text x="335" y="305" class="bs" text-anchor="middle">nothing replaced</text></g>
+
+  <!-- SQL -->
+  <g id="bxSQL"><rect class="box" x="452" y="152" width="190" height="200" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <rect x="452" y="152" width="190" height="26" rx="3" fill="#F0F3F7"/>
+    <text x="547" y="170" class="bt" text-anchor="middle">Azure SQL Database</text>
+    <text x="547" y="196" class="bs" text-anchor="middle">Governed core — one definition per figure</text>
+    <text x="547" y="220" class="bs mono" text-anchor="middle" id="sqlrow">vw_service_delivery</text>
+    <text x="547" y="236" class="bs mono" text-anchor="middle">vw_procurement</text>
+    <text x="547" y="252" class="bs mono" text-anchor="middle">vw_invisible_care</text>
+    <text x="547" y="278" class="bs" text-anchor="middle">RLS: client_code =</text>
+    <text x="547" y="292" class="bs" text-anchor="middle">SESSION_CONTEXT</text>
+    <text x="547" y="314" class="bs" text-anchor="middle">coded estates — no names</text>
+    <text x="547" y="329" class="bs" text-anchor="middle">in stored data</text></g>
+
+  <!-- DAB -->
+  <g id="bxDAB"><rect class="box" x="686" y="130" width="216" height="244" rx="3" fill="#EEF2F7" stroke="#2B579A" stroke-width="1.6"/>
+    <rect x="686" y="130" width="216" height="28" rx="3" fill="#2B579A"/>
+    <text x="794" y="149" class="bt" text-anchor="middle" style="fill:#FFFFFF">Data API builder (DAB)</text>
+    <text x="794" y="176" class="bs" text-anchor="middle">Azure Container Apps · stateless</text>
+    <rect x="700" y="188" width="188" height="60" rx="2" fill="#1E2B3A"/>
+    <text x="709" y="206" class="bs mono" style="fill:#FFFFFF">GET /api/vw_service_delivery</text>
+    <text x="709" y="222" class="bs mono" style="fill:#FFFFFF">GET /api/vw_procurement</text>
+    <text x="709" y="238" class="bs mono" style="fill:#FFFFFF">POST /graphql</text>
+    <text x="794" y="268" class="bs" text-anchor="middle">dab-config.json · zero custom code</text>
+    <text x="794" y="284" class="bs" text-anchor="middle">exposes views &amp; stored procedures</text>
+    <text x="794" y="306" class="bs" text-anchor="middle">Entra ID auth · role: client_reader</text>
+    <text x="794" y="322" class="bs" text-anchor="middle">session-context → SQL RLS</text>
+    <text x="794" y="346" class="bs" text-anchor="middle" fill="#2B579A">open source · GA · free · MIT licence</text>
+    <text x="794" y="362" class="bs" text-anchor="middle" fill="#2B579A">replaces custom middleware</text></g>
+
+  <!-- APIM -->
+  <g id="bxAPIM"><rect class="box" x="946" y="176" width="134" height="150" rx="3" fill="#fff" stroke="#5B6B7F" stroke-width="1.2"/>
+    <rect x="946" y="176" width="134" height="26" rx="3" fill="#F0F3F7"/>
+    <text x="1013" y="194" class="bt" text-anchor="middle">API Management</text>
+    <text x="1013" y="222" class="bs" text-anchor="middle">subscription key per client</text>
+    <text x="1013" y="238" class="bs" text-anchor="middle">throttling · caching</text>
+    <text x="1013" y="254" class="bs" text-anchor="middle">policy enforcement</text>
+    <text x="1013" y="278" class="bs" text-anchor="middle" id="apimlog">audit: —</text>
+    <text x="1013" y="306" class="bs" text-anchor="middle">the only public door</text></g>
+
+  <!-- PORTAL -->
+  <rect x="1122" y="52" width="356" height="486" rx="4" fill="#F7F8FA" stroke="#C9D1DB"/>
+  <text x="1136" y="76" class="zl">CLIENT ACCESS · HTTPS · TLS 1.2+</text>
+  <g id="bxPortal">
+    <rect class="box" x="1142" y="90" width="316" height="404" rx="4" fill="#fff" stroke="#0F2439" stroke-width="1.4"/>
+    <rect x="1142" y="90" width="316" height="30" rx="4" fill="#0F2439"/>
+    <circle cx="1160" cy="105" r="4" fill="#7A8AA0"/><circle cx="1174" cy="105" r="4" fill="#7A8AA0"/>
+    <text x="1300" y="110" text-anchor="middle" font-size="12.5" font-weight="600" fill="#FFFFFF">Client Intelligence — SP-11021</text>
+    <rect id="t1" x="1158" y="136" width="138" height="92" rx="3" fill="#fff" stroke="#C9D1DB"/>
+    <text x="1168" y="154" class="bs">OPEN WORK ORDERS</text>
+    <text id="v-open" x="1168" y="190" font-size="28" font-weight="600" fill="#0F2439">128</text>
+    <text x="1168" y="214" class="bs" fill="#217346">SLA <tspan id="v-sla">97.2</tspan>%</text>
+    <rect id="t2" x="1306" y="136" width="138" height="92" rx="3" fill="#fff" stroke="#C9D1DB"/>
+    <text x="1316" y="154" class="bs">TENDER PIPELINE</text>
+    <text id="v-ten" x="1316" y="190" font-size="25" font-weight="600" fill="#0F2439">9.7</text>
+    <text x="1316" y="214" class="bs">AED m · <tspan id="v-gates">4 gates live</tspan></text>
+    <rect id="t3" x="1158" y="240" width="286" height="72" rx="3" fill="#fff" stroke="#C9D1DB"/>
+    <text x="1168" y="258" class="bs">INVISIBLE CARE · AVG MAJLIS TEMP</text>
+    <text id="v-temp" x="1168" y="292" font-size="25" font-weight="600" fill="#0F2439">22.4°C</text>
+    <text x="1286" y="292" class="bs" fill="#217346">within comfort band</text>
+    <rect x="1158" y="324" width="286" height="118" rx="3" fill="#1E2B3A"/>
+    <text x="1168" y="342" class="bs mono" style="fill:#B9C6D6">// last response</text>
+    <text id="j1" x="1168" y="360" class="bs mono" style="fill:#FFFFFF">{"open_orders":128,</text>
+    <text id="j2" x="1168" y="376" class="bs mono" style="fill:#FFFFFF"> "sla_pct":97.2,</text>
+    <text id="j3" x="1168" y="392" class="bs mono" style="fill:#FFFFFF"> "as_of":"—",</text>
+    <text id="j4" x="1168" y="408" class="bs mono" style="fill:#FFFFFF"> "estate":"SP-11021"}</text>
+    <text x="1168" y="430" class="bs mono" style="fill:#FFFFFF" id="jstat">200 OK · 41 ms</text>
+    <text x="1300" y="466" class="bs" text-anchor="middle" id="asof">Last updated: —</text>
+  </g>
+
+  <!-- CONNECTORS -->
+  <g stroke="#5B6B7F" stroke-width="1.5" fill="none">
+    <path id="p1" d="M198,128 C232,128 240,220 262,232" marker-end="url(#ar)"/>
+    <path id="p2" d="M198,216 C228,216 236,238 262,246" marker-end="url(#ar)"/>
+    <path id="p3" d="M198,304 C228,304 236,268 262,260" marker-end="url(#ar)"/>
+    <path id="p4" d="M198,392 C234,392 240,286 262,274" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+    <path id="p5" d="M408,251 L452,251" marker-end="url(#ar)"/>
+    <path id="p6" d="M642,251 L686,251" marker-end="url(#ar)"/>
+    <path id="p7" d="M902,251 L946,251" marker-end="url(#ar)"/>
+    <path id="p8" d="M1080,251 L1142,251" marker-end="url(#ar)"/>
+  </g>
+  <text x="208" y="116" class="proto">pipelines</text>
+  <text x="208" y="384" class="proto">eventstream</text>
+  <text x="430" y="242" class="proto" text-anchor="middle">T-SQL</text>
+  <text x="664" y="242" class="proto" text-anchor="middle">SQL</text>
+  <text x="924" y="242" class="proto" text-anchor="middle">JSON</text>
+  <text x="1111" y="242" class="proto" text-anchor="middle">HTTPS</text>
+
+  <g id="amb"></g>
+  <circle id="burst" r="5.5" fill="#2B579A" opacity="0"/>
+
+  <!-- event card -->
+  <g id="evcard" opacity="0">
+    <rect x="262" y="440" width="380" height="60" rx="3" fill="#0F2439"/>
+    <circle cx="286" cy="470" r="6" fill="#2B579A"><animate attributeName="opacity" values="1;.4;1" dur="1.2s" repeatCount="indefinite"/></circle>
+    <text id="evt1" x="304" y="464" class="bs" style="fill:#FFFFFF" font-weight="600">—</text>
+    <text id="evt2" x="304" y="482" class="bs" style="fill:#B9C6D6">—</text>
+  </g>
+</svg>
+<div class="legend">
+  <span><i class="dot" style="background:#5B6B7F"></i><b>Ambient</b> — scheduled syncs, always running</span>
+  <span><i class="dot" style="background:#2B579A"></i><b>Event</b> — one change traced end-to-end</span>
+  <span><b>Boundary:</b> dashed = Wasael tenant · the portal reads only via APIM → DAB → contract views</span>
+  <span><b>Scenario 1</b> — all sources ours; no client-side systems in this pattern</span>
+</div>
+</div>
+</div><!-- /t-flow -->
+
+<div class="panel" id="t-map">
+  <div class="simband"><b>SIMULATED</b> — structure is the deliverable; every row awaits SME confirmation via Forms A/B. Working copy: <b>cip-data-mapping-simulated.xlsx</b>. Scenario 1 only.</div>
+  <div class="fbar">
+    <div><label>Portal panel</label><select id="f-pan"><option value="">All</option></select></div>
+    <div><label>Source system</label><select id="f-sys2"><option value="">All</option></select></div>
+    <div><label>Shape</label><select id="f-shape"><option value="">All</option><option>Digital</option><option>Hybrid</option><option>Manual</option></select></div>
+    <div><label>Status</label><select id="f-stat"><option value="">All</option><option>Mapped</option><option>Partial</option><option>TBC</option><option>Gap</option></select></div>
+    <div class="cnt" id="f-cnt"></div>
+  </div>
+  <div style="max-height:560px;overflow:auto;border:1px solid var(--line)">
+  <table class="map"><thead><tr>
+    <th>ID</th><th>Portal panel</th><th>Target field</th><th>View</th><th>Source system</th><th>Entity · field</th><th>Transformation</th><th>Gran.</th><th>Cadence</th><th>Sens.</th><th>Owner</th><th>Shape</th><th>Status</th><th>Notes</th>
+  </tr></thead><tbody id="maprows"></tbody></table></div>
+</div><!-- /t-map -->
+
+<div class="panel" id="t-readme">
+  <div class="simband"><b>SIMULATED</b> — structure is the deliverable; rows are realistic illustrations pending SME confirmation via Forms A/B.</div>
+  <div class="syscard" style="margin-top:14px;max-width:1050px">
+    <b>Client Intelligence Portal — Source-to-Target Data Mapping</b>
+    <div class="r">Scenario 1 · our data, our systems · serving pattern: contract views → Data API builder (DAB) → APIM → portal</div>
+  </div>
+  <div class="sysgrid" style="grid-template-columns:1fr;max-width:1050px">
+    <div class="syscard"><b>Purpose</b><div class="r">One document holding every portal field (target) against the system field that feeds it (source), with transformation, cadence, ownership and status — the working annex to the JSON data-contract spec.</div></div>
+    <div class="syscard"><b>How to use</b><div class="r">Filter the Mapping tab by portal panel or source system. In the working Excel (<b>cip-data-mapping-simulated.xlsx</b>), complete or correct the blue columns; Status and Shape drive the colour coding. Gaps &amp; TBC counts anything not fully mapped.</div></div>
+    <div class="syscard"><b>Conventions</b><div class="r">Target = what the portal shows (panel · JSON key in the contract view). Source = system of record (system · entity · field). In the Excel, blue text = input to complete/confirm · black = fixed structure.</div></div>
+    <div class="syscard"><b>Status values</b><div class="r"><span class="pl pl-map">Mapped</span> source confirmed and reachable &nbsp;·&nbsp; <span class="pl pl-par">Partial</span> source known, transformation or access unresolved &nbsp;·&nbsp; <span class="pl pl-gap">Gap</span> no digital source exists today &nbsp;·&nbsp; <span class="pl pl-tbc">TBC</span> awaiting SME confirmation.</div></div>
+    <div class="syscard"><b>Scenario note</b><div class="r">All rows are Scenario 1. Scenario 2 (hybrid) mappings are excluded by design; they follow after client IT/OT confirmation per site.</div></div>
+  </div>
+</div><!-- /t-readme -->
+
+<div class="panel" id="t-gaps">
+  <div class="simband"><b>Open items — counted live from the Mapping tab.</b> Action rule: every Partial / TBC / Gap row must carry an owner and a note; Gaps feed the Fabric backlog, TBCs feed the SME forms.</div>
+  <div style="max-width:760px;margin-top:14px;border:1px solid var(--line)">
+  <table class="map"><thead><tr><th>Status</th><th style="width:90px">Count</th><th>Meaning</th></tr></thead>
+  <tbody id="gaprows"></tbody></table></div>
+  <div class="kpirow" id="gapkpis"></div>
+</div><!-- /t-gaps -->
+
+<div class="panel" id="t-sys">
+  <div class="simband"><b>SIMULATED</b> — owners and access methods pending IT confirmation.</div>
+  <div style="margin-top:14px;border:1px solid var(--line);overflow:auto">
+  <table class="map"><thead><tr><th>System</th><th>Owner (IT)</th><th>Modules in scope</th><th>Access protocol</th><th>Environment</th><th>Scenario</th><th>Notes</th></tr></thead>
+  <tbody id="sysrows"></tbody></table></div>
+</div><!-- /t-sys -->
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const svgNS="http://www.w3.org/2000/svg";
+[["p1",2.6],["p2",2.2],["p3",2.9],["p4",1.7],["p5",1.9],["p6",1.9],["p7",1.7],["p8",1.6]].forEach(([pid,dur],i)=>{
+  const c=document.createElementNS(svgNS,"circle");
+  c.setAttribute("r",2.2);c.setAttribute("fill","#5B6B7F");c.setAttribute("opacity",".7");
+  const m=document.createElementNS(svgNS,"animateMotion");
+  m.setAttribute("dur",dur+"s");m.setAttribute("repeatCount","indefinite");m.setAttribute("begin",(i*0.33)+"s");
+  const mp=document.createElementNS(svgNS,"mpath");
+  mp.setAttributeNS("http://www.w3.org/1999/xlink","href","#"+pid);
+  m.appendChild(mp);c.appendChild(m);$("amb").appendChild(c);
+});
+let S={open:128,sla:97.2,ten:9.7,gates:4,temp:22.4},busy=false;
+const EVENTS=[
+ {src:"srcMRI",p0:"p2",t1:"MRI CAFM — work order WO-4821 completed",t2:"Royal Majlis AHU filter · closed within SLA",
+  apply:()=>{S.open--;S.sla=Math.min(99,S.sla+0.2);},tile:"t1",
+  view:"vw_service_delivery",json:()=>[`{"open_orders":${S.open},`,` "sla_pct":${S.sla.toFixed(1)},`,` "as_of":"${now()}",`,` "estate":"SP-11021"}`]},
+ {src:"srcD365",p0:"p1",t1:"D365 — tender T-0147 passed gate 6",t2:"technical evaluation approved · value AED 0.8m",
+  apply:()=>{S.ten=+(S.ten+0.8).toFixed(1);S.gates++;},tile:"t2",
+  view:"vw_procurement",json:()=>[`{"pipeline_aed_m":${S.ten},`,` "gates_live":${S.gates},`,` "as_of":"${now()}",`,` "estate":"SP-11021"}`]},
+ {src:"srcIoT",p0:"p4",t1:"IoT — Majlis sensor cluster reading",t2:"eventstream · near-live ingestion",
+  apply:()=>{S.temp=+(22+Math.random()*0.9).toFixed(1);},tile:"t3",
+  view:"vw_invisible_care",json:()=>[`{"avg_temp_c":${S.temp},`,` "band":"comfort",`,` "as_of":"${now()}",`,` "estate":"SP-11021"}`]}];
+let ei=0;
+const now=()=>new Date().toLocaleTimeString("en-GB");
+function hl(id){const el=$(id);if(!el)return;const box=el.querySelector("rect.box")||el;
+ box.classList.add("hl");setTimeout(()=>box.classList.remove("hl"),1300);}
+function ride(pid,dur){return new Promise(res=>{
+  const b=$("burst");b.setAttribute("opacity","1");
+  const m=document.createElementNS(svgNS,"animateMotion");
+  m.setAttribute("dur",dur+"s");m.setAttribute("fill","freeze");
+  const mp=document.createElementNS(svgNS,"mpath");mp.setAttributeNS("http://www.w3.org/1999/xlink","href","#"+pid);
+  m.appendChild(mp);b.appendChild(m);m.beginElement();
+  setTimeout(()=>{b.removeChild(m);res();},dur*1000+30);});}
+async function run(){
+  if(busy)return;busy=true;$("go").disabled=true;
+  const ev=EVENTS[ei%EVENTS.length];ei++;
+  $("evt1").textContent=ev.t1;$("evt2").textContent=ev.t2;$("evcard").setAttribute("opacity","1");
+  $("status").textContent="1/6 — source event raised in "+ev.t1.split(" — ")[0];
+  hl(ev.src);await new Promise(r=>setTimeout(r,700));
+  $("status").textContent="2/6 — Fabric ingests (pipeline / eventstream)";
+  await ride(ev.p0,0.9);hl("bxFab");await new Promise(r=>setTimeout(r,500));
+  $("status").textContent="3/6 — governed core updated · "+ev.view;
+  await ride("p5",0.7);hl("bxSQL");$("sqlrow").textContent=ev.view+" ✓";
+  await new Promise(r=>setTimeout(r,550));
+  $("status").textContent="4/6 — DAB translates GET → parameterized SQL, returns JSON";
+  await ride("p6",0.7);hl("bxDAB");await new Promise(r=>setTimeout(r,550));
+  $("status").textContent="5/6 — APIM: key ✓ · throttle ✓ · audit written";
+  await ride("p7",0.6);hl("bxAPIM");$("apimlog").textContent="audit: "+now()+" · 200";
+  await new Promise(r=>setTimeout(r,450));
+  $("status").textContent="6/6 — portal re-renders from fresh JSON";
+  await ride("p8",0.6);hl("bxPortal");
+  ev.apply();
+  const j=ev.json();["j1","j2","j3","j4"].forEach((id,k)=>$(id).textContent=j[k]);
+  $("jstat").textContent="200 OK · "+(28+Math.floor(Math.random()*30))+" ms · GET /api/"+ev.view;
+  $("v-open").textContent=S.open;$("v-sla").textContent=S.sla.toFixed(1);
+  $("v-ten").textContent=S.ten.toFixed(1);$("v-gates").textContent=S.gates+" gates live";
+  $("v-temp").textContent=S.temp.toFixed(1)+"°C";
+  $("asof").textContent="Last updated: "+now();
+  const t=$(ev.tile);t.classList.remove("tile-flash");void t.getBBox;t.classList.add("tile-flash");
+  $("burst").setAttribute("opacity","0");
+  await new Promise(r=>setTimeout(r,900));
+  $("status").textContent="Idle — ambient sync running. Auto-simulation every 11s.";
+  $("evcard").setAttribute("opacity","0");
+  busy=false;$("go").disabled=false;
+}
+$("go").addEventListener("click",run);
+setInterval(()=>{if(!busy&&document.visibilityState==="visible"&&document.getElementById("t-flow").classList.contains("on"))run();},11000);
+$("asof").textContent="Last updated: "+now();
+$("j3").textContent=` "as_of":"${now()}",`;
+
+/* ================= TABS ================= */
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===t.dataset.t));
+}));
+
+/* ================= MAPPING DATA (mirror of xlsx) ================= */
+const MAP=[
+["M001","Service Delivery","open_orders","vw_service_delivery","MRI CAFM","WorkOrder · WO_STATUS (open set)","COUNT open statuses, estate=@code","Transaction","Near-live","Client","D. Bartely","Digital","Mapped","Status set to confirm (Yosh)"],
+["M002","Service Delivery","sla_pct","vw_service_delivery","MRI CAFM","WorkOrder · RESPOND_BY vs RESPONDED_AT","% closed within SLA, rolling 30d","Transaction","Daily","Client","D. Bartely","Digital","Mapped",""],
+["M003","Service Delivery","avg_response_min","vw_service_delivery","MRI CAFM","WorkOrder · CREATED_AT, RESPONDED_AT","AVG minutes, 30d, excl. PPM","Transaction","Daily","Client","D. Bartely","Digital","Mapped",""],
+["M004","Service Delivery","guest_requests_open","vw_service_delivery","MRI CAFM","ServiceRequest · REQ_TYPE='GUEST'","COUNT open guest-class","Transaction","Near-live","Client","A. Filat (TBC)","Digital","TBC","Hospitality ownership pending Excom"],
+["M010","Asset Management","asset_count","vw_asset_mgmt","MRI CAFM","Asset · ASSET_ID","COUNT active per estate","Document","Weekly","Client","A. Matthews","Digital","Mapped",""],
+["M011","Asset Management","asset_health_idx","vw_asset_mgmt","MRI CAFM","AssetCondition · CONDITION_SCORE","Weighted avg → 0-100; 40/30/20/10 TBC","Document","Monthly","Client","A. Matthews","Hybrid","Partial","Weights await Mihai"],
+["M012","Asset Management","assets_beyond_life","vw_asset_mgmt","MRI CAFM","Asset · INSTALL_DATE, LIFE_Y","COUNT age > expected life","Document","Monthly","Client","A. Matthews","Digital","Mapped",""],
+["M020","Finance","opex_ytd_aed","vw_finance","D365 F&O","GL · ACCOUNT 6xxxxx","SUM actuals YTD, estate dim","Transaction","Daily","Client","M. Aid","Digital","Mapped","G0 cost-dimension check"],
+["M021","Finance","opex_var_pct","vw_finance","D365 F&O","Budget vs GL","(actual−budget)/budget ×100","Aggregate","Monthly","Client","M. Aid","Digital","Mapped",""],
+["M022","Finance","capex_committed_aed","vw_finance","D365 F&O","PurchaseOrder · TYPE='CAPEX'","SUM committed POs","Document","Daily","Client","M. Aid","Digital","Mapped",""],
+["M030","Procurement","pipeline_aed_m","vw_procurement","D365 F&O","TenderRegister · EST_VALUE","SUM active ÷ 1e6","Document","Weekly","Client","R. Imanzada","Digital","Mapped",""],
+["M031","Procurement","gates_live","vw_procurement","Excel tracker","13-gate tracker · GATE_NO","COUNT at gates 1–13","Document","Weekly","Client","R. Imanzada","Manual","Partial","Migrate to D365 / template"],
+["M032","Procurement","awarded_ytd_aed_m","vw_procurement","D365 F&O","PO · AWARD_DATE","SUM awarded FY ÷ 1e6","Document","Weekly","Client","R. Imanzada","Digital","Mapped",""],
+["M040","Projects","projects_active","vw_projects","D365 Projects","Project · STAGE","COUNT not closed/cancelled","Document","Weekly","Client","D. Alivio","Digital","Mapped",""],
+["M041","Projects","projects_by_stage","vw_projects","D365 Projects","Project · STAGE","GROUP BY stage → array","Document","Weekly","Client","D. Alivio","Digital","Mapped",""],
+["M042","Projects","progress_photo_url","vw_projects","OneDrive","/SP-*/progress · FILE_PATH","Latest URL via governed naming","Document","On change","Client","D. Alivio","Hybrid","Partial","Folder governance to enforce"],
+["M050","Compliance & HSE","permits_valid_pct","vw_hse","MRI CAFM","HSE Register · EXPIRY_DATE","% unexpired","Document","Weekly","Client","F. Salahat","Hybrid","Partial","Part still on SharePoint"],
+["M051","Compliance & HSE","incidents_mtd","vw_hse","SharePoint","IncidentList · INCIDENT_DATE","COUNT MTD","Document","Daily","Internal","F. Salahat","Hybrid","TBC","Visibility pending red-lines"],
+["M060","HR & Workforce","staff_deployed","vw_hr","D365 HR + T&A","Attendance · CLOCK_IN","COUNT distinct on site today","Transaction","Near-live","Client","M. Aid","Digital","Mapped",""],
+["M061","HR & Workforce","deployment_vs_plan_pct","vw_hr","D365 HR","RosterPlan · PLANNED_HEADCOUNT","deployed/planned ×100","Aggregate","Daily","Client","M. Aid","Digital","Mapped",""],
+["M070","Invisible Care","avg_temp_c","vw_invisible_care","IoT / Event Hub","SensorReading · TEMP_C (MAJLIS)","AVG last 15 min per zone","Transaction","Near-live","Client","W. Ahmad","Digital","Mapped",""],
+["M071","Invisible Care","env_alerts_open","vw_invisible_care","IoT / Event Hub","AlertStream · THRESHOLD_BREACH","COUNT unresolved","Transaction","Near-live","Internal","W. Ahmad","Digital","Mapped","Visibility TBC"],
+["M080","Sustainability","energy_kwh_mtd","vw_sustainability","Utility bills (paper)","DEWA/ADDC · kWh line","Manual keying — NO DIGITAL SOURCE","Aggregate","Monthly","Client","(unassigned)","Manual","Gap","Meter/API feed to scope"],
+["M081","Sustainability","water_m3_mtd","vw_sustainability","Utility bills (paper)","Invoices · m³ line","Manual keying — NO DIGITAL SOURCE","Aggregate","Monthly","Client","(unassigned)","Manual","Gap","Same as M080"],
+["M090","All panels","data_health_idx","(all views)","Fabric","Run log · FRESHNESS, COMPLETENESS","freshness × completeness × recon","Aggregate","Per refresh","Client","S. Doddi","Digital","Partial","MVP-critical; formula to design"],
+["M091","All panels","approval_status","vw_approvals","D365 F&O","WorkflowHistory · APPROVAL_STATE","Latest per doc class, C/EU/Priv","Document","Daily","Client","R. Dhungana","Digital","TBC","'Privilege' wording (Chart C)"]];
+const plS={Digital:"pl-dig",Hybrid:"pl-hyb",Manual:"pl-man"},plT={Mapped:"pl-map",Partial:"pl-par",TBC:"pl-tbc",Gap:"pl-gap"};
+function fillSel(id,vals){const s=$(id);[...new Set(vals)].sort().forEach(v=>{const o=document.createElement("option");o.textContent=v;s.appendChild(o);});}
+fillSel("f-pan",MAP.map(r=>r[1]));fillSel("f-sys2",MAP.map(r=>r[4]));
+function renderMap(){
+  const fp=$("f-pan").value,fs=$("f-sys2").value,fsh=$("f-shape").value,fst=$("f-stat").value;
+  const rows=MAP.filter(r=>(!fp||r[1]===fp)&&(!fs||r[4]===fs)&&(!fsh||r[11]===fsh)&&(!fst||r[12]===fst));
+  $("maprows").innerHTML=rows.map(r=>`<tr>
+    <td class="mono">${r[0]}</td><td><b style="color:var(--ink)">${r[1]}</b></td>
+    <td class="mono">${r[2]}</td><td class="mono">${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td>
+    <td>${r[6]}</td><td>${r[7]}</td><td>${r[8]}</td><td>${r[9]}</td><td>${r[10]}</td>
+    <td><span class="pl ${plS[r[11]]}">${r[11]}</span></td>
+    <td><span class="pl ${plT[r[12]]}">${r[12]}</span></td><td>${r[13]}</td></tr>`).join("");
+  $("f-cnt").textContent=rows.length+" of "+MAP.length+" mappings";
+}
+["f-pan","f-sys2","f-shape","f-stat"].forEach(id=>$(id).addEventListener("change",renderMap));
+renderMap();
+
+/* ================= GAPS & TBC (mirrors workbook sheet) ================= */
+const counts={Mapped:0,Partial:0,TBC:0,Gap:0,Manual:0};
+MAP.forEach(r=>{counts[r[12]]++;if(r[11]==="Manual")counts.Manual++;});
+const MEAN={Mapped:"Rows fully mapped",Partial:"Source known, unresolved detail",TBC:"Awaiting SME confirmation",Gap:"No digital source exists"};
+const gcls={Mapped:"pl-map",Partial:"pl-par",TBC:"pl-tbc",Gap:"pl-gap"};
+$("gaprows").innerHTML=["Mapped","Partial","TBC","Gap"].map(s=>`<tr>
+  <td><span class="pl ${gcls[s]}">${s}</span></td><td><b style="color:var(--ink)">${counts[s]}</b></td><td>${MEAN[s]}</td></tr>`).join("");
+$("gapkpis").innerHTML=`<div class="kpi"><b>${MAP.length}</b><span>total mapping rows</span></div>
+ <div class="kpi"><b style="color:#8A2E1E">${counts.Manual}</b><span>manual-shape sources (cannot automate today)</span></div>`;
+
+/* ================= SOURCE SYSTEMS (mirrors workbook sheet) ================= */
+const SYS=[["D365 F&O","Rajendra Dhungana","GL · Procurement · PO · Workflow","OData / Dataverse","Wasael tenant","S1","Cost-dimension model is the G0 joinability question"],
+["D365 Projects","Rajendra Dhungana","Project · stage-gates","OData / Dataverse","Wasael tenant","S1",""],
+["D365 HR + T&A","Rajendra Dhungana","Roster · Attendance","OData / API","Wasael tenant","S1",""],
+["MRI CAFM","Anu Nahas","WorkOrder · Asset · HSE · ServiceRequest","SQL extract / API","Wasael tenant","S1","Extraction method per module to confirm"],
+["OneDrive / SharePoint","Waqas Ahmad","Governed templates · project folders · lists","Graph API","Wasael tenant","S1","Folder-naming governance prerequisite"],
+["IoT / Event Hub","Waqas Ahmad","Environmental sensors","MQTT → Event Hub → Eventstream","Wasael tenant","S1",""],
+["Utility invoices","(unassigned)","DEWA / ADDC paper bills","None — manual","Physical","S1","Feeds the two Gap rows; meter/API feed to scope"]];
+$("sysrows").innerHTML=SYS.map(s=>`<tr><td><b style="color:var(--ink)">${s[0]}</b></td><td>${s[1]}</td><td>${s[2]}</td>
+ <td class="mono">${s[3]}</td><td>${s[4]}</td><td>${s[5]}</td><td>${s[6]}</td></tr>`).join("");
+</script>
+</body>
+</html>

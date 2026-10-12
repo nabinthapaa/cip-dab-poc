@@ -1,0 +1,87 @@
+# =============================================================================
+# CIP · Data API builder live-read POC
+#
+#   simulator ──► SQL Server (silver ─► contract views + RLS) ──► DAB ──► gateway ──► portal
+#   (stand-in for                                                       (stand-in for
+#    Fabric pipelines/eventstream)                                       API Management)
+#
+#   docker compose up --build        then open http://localhost:8080
+# =============================================================================
+name: cip-dab-poc
+
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64            # Apple silicon: enable Rosetta in Docker Desktop
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:?set SA_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:14330:1433"      # optional: inspect with SSMS / Azure Data Studio
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    depends_on:
+      sql:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD}
+      DAB_READER_PASSWORD: ${DAB_READER_PASSWORD:?set DAB_READER_PASSWORD in .env}
+      CIP_INGEST_PASSWORD: ${CIP_INGEST_PASSWORD:?set CIP_INGEST_PASSWORD in .env}
+      RESET_DB: ${RESET_DB:-0}
+    volumes:
+      - ./sql:/sql:ro
+    entrypoint: ["/bin/bash", "/sql/run-init.sh"]
+    restart: "no"
+
+  dab:
+    # Data API builder, pinned to the release this config was validated against
+    image: mcr.microsoft.com/azure-databases/data-api-builder:2.1.5
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DAB_CONNECTION_STRING: "Server=sql,1433;Database=cip;User ID=dab_reader;Password=${DAB_READER_PASSWORD};Encrypt=True;TrustServerCertificate=True;Application Name=dab"
+    volumes:
+      - ./dab/dab-config.json:/App/dab-config.json:ro
+    expose:
+      - "5000"                       # internal only - reachable through the gateway, never directly
+    restart: unless-stopped
+
+  simulator:
+    build: ./simulator
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      SQL_SERVER: sql
+      SQL_DATABASE: cip
+      SQL_USER: cip_ingest
+      SQL_PASSWORD: ${CIP_INGEST_PASSWORD}
+      SIM_TICK_SECONDS: ${SIM_TICK_SECONDS:-3}
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.27-alpine
+    depends_on:
+      - dab
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./gateway/dab-proxy.inc:/etc/nginx/conf.d/dab-proxy.inc:ro
+      - ./portal:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+volumes:
+  sqldata: {}

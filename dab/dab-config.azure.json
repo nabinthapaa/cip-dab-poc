@@ -1,0 +1,595 @@
+{
+  "$schema": "https://github.com/Azure/data-api-builder/releases/download/v2.1.5/dab.draft.schema.json",
+  "data-source": {
+    "database-type": "mssql",
+    "connection-string": "@env('DAB_CONNECTION_STRING')",
+    "options": {
+      "set-session-context": true
+    }
+  },
+  "runtime": {
+    "rest": {
+      "enabled": true,
+      "path": "/api",
+      "request-body-strict": true
+    },
+    "graphql": {
+      "enabled": true,
+      "path": "/graphql",
+      "allow-introspection": false,
+      "depth-limit": 4
+    },
+    "mcp": {
+      "enabled": false
+    },
+    "host": {
+      "mode": "production",
+      "cors": {
+        "origins": [],
+        "allow-credentials": false
+      },
+      "authentication": {
+        "provider": "EntraID",
+        "jwt": {
+          "audience": "@env('DAB_JWT_AUDIENCE')",
+          "issuer": "@env('DAB_JWT_ISSUER')"
+        }
+      }
+    },
+    "pagination": {
+      "default-page-size": 100,
+      "max-page-size": 1000
+    },
+    "cache": {
+      "enabled": false
+    },
+    "telemetry": {
+      "application-insights": {
+        "enabled": true,
+        "connection-string": "@env('APPLICATIONINSIGHTS_CONNECTION_STRING')"
+      }
+    }
+  },
+  "entities": {
+    "vw_estate": {
+      "description": "Coded estate master: tier, region, map position. No names stored.",
+      "source": {
+        "object": "contract.vw_estate",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Estate",
+          "plural": "Estates"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_service_delivery": {
+      "description": "M001-M003 \u00b7 open work orders, SLA % (rolling 30d), response, MTTR, PPM completion (90d), planned share (12m) per estate.",
+      "source": {
+        "object": "contract.vw_service_delivery",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "ServiceDelivery",
+          "plural": "ServiceDeliveries"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_invisible_care": {
+      "description": "M070-M071 + M011 \u00b7 environmental indices (15-min window), alerts and the Invisible Care Index per estate.",
+      "source": {
+        "object": "contract.vw_invisible_care",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "InvisibleCare",
+          "plural": "InvisibleCares"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_asset_mgmt": {
+      "description": "M010-M012 \u00b7 tagged assets, condition index, assets beyond life per estate.",
+      "source": {
+        "object": "contract.vw_asset_mgmt",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "AssetMgmt",
+          "plural": "AssetMgmts"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_finance": {
+      "description": "M020-M022 \u00b7 OPEX FY plan, YTD plan vs actual, variance, annualised; CAPEX drawdown per estate.",
+      "source": {
+        "object": "contract.vw_finance",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Finance",
+          "plural": "Finances"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_finance_monthly": {
+      "description": "Portfolio OPEX plan and actual by month, current fiscal year.",
+      "source": {
+        "object": "contract.vw_finance_monthly",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "client_code",
+          "primary-key": true
+        },
+        {
+          "name": "period",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "FinanceMonth",
+          "plural": "FinanceMonths"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_finance_dimension": {
+      "description": "Portfolio OPEX YTD plan vs actual by ERP cost dimension.",
+      "source": {
+        "object": "contract.vw_finance_dimension",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "client_code",
+          "primary-key": true
+        },
+        {
+          "name": "cost_dimension",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "FinanceDimension",
+          "plural": "FinanceDimensions"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_hr": {
+      "description": "M060-M061 \u00b7 staff on site by category and deployment vs roster plan per estate.",
+      "source": {
+        "object": "contract.vw_hr",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "estate_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Workforce",
+          "plural": "Workforces"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_procurement": {
+      "description": "M030-M032 \u00b7 tender pipeline summary per client.",
+      "source": {
+        "object": "contract.vw_procurement",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "client_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Procurement",
+          "plural": "Procurements"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_tender": {
+      "description": "Tender register with 13-gate stage position and status.",
+      "source": {
+        "object": "contract.vw_tender",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "tender_ref",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Tender",
+          "plural": "Tenders"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_tender_gate": {
+      "description": "Stage-gate history per tender.",
+      "source": {
+        "object": "contract.vw_tender_gate",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "tender_ref",
+          "primary-key": true
+        },
+        {
+          "name": "gate_no",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "TenderGate",
+          "plural": "TenderGates"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_works": {
+      "description": "M040-M041 \u00b7 capital projects (8 gates) and on-demand works (4 stages).",
+      "source": {
+        "object": "contract.vw_works",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "item_ref",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "WorkItem",
+          "plural": "WorkItems"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_exceptions": {
+      "description": "Threshold-flagged exceptions with the management action logged against each.",
+      "source": {
+        "object": "contract.vw_exceptions",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "exception_key",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "ExceptionItem",
+          "plural": "ExceptionItems"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_activity": {
+      "description": "Ingestion log: one row per source event landed in silver.",
+      "source": {
+        "object": "contract.vw_activity",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "event_id",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "Activity",
+          "plural": "Activities"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_data_health": {
+      "description": "M090 \u00b7 freshness and status per source system against its expected cadence.",
+      "source": {
+        "object": "contract.vw_data_health",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "health_key",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "DataHealth",
+          "plural": "DataHealths"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "vw_portfolio_kpi": {
+      "description": "Portfolio headline KPIs per client, computed at client grain (not averaged from estates).",
+      "source": {
+        "object": "contract.vw_portfolio_kpi",
+        "type": "view"
+      },
+      "fields": [
+        {
+          "name": "client_code",
+          "primary-key": true
+        }
+      ],
+      "rest": {
+        "enabled": true
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "PortfolioKpi",
+          "plural": "PortfolioKpis"
+        }
+      },
+      "permissions": [
+        {
+          "role": "client_reader",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Portfolio Intelligence POC</title>
+<style>
+/* Layout: v3 console kept intact - dark estate rail, sticky header + dimension tabs, card grid.
+   Single deliberate light theme (the client's stone/taupe identity); every colour is a token. */
+:root{
+  --stone:#F1EDE6; --paper:#FBF9F5; --ink:#26221E; --ink2:#58534E; --taupe:#8C7A63;
+  --sand:#CFC4B0; --line:#E3DDD1; --mute:#80776D; --grid:#E9E3D7; --hover:#F5F1E9; --sel:#EFE9DC;
+  --good:#4A7C59; --warn:#B8862D; --crit:#A6402E;
+  --good-bg:#E3EBE2; --warn-bg:#F1E6CC; --warn-fg:#8A6516; --crit-bg:#F0DCD6; --neutral-bg:#E4E0D6;
+  --rail-bg:#26221E; --rail-fg:#DCD5C9; --rail-mute:#8A8171; --rail-head:#F2EDE3; --rail-line:rgba(220,213,201,.14);
+  --banner-line:#DECFAF; --banner-fg:#6B5A33; --err-line:#E3BFB4;
+  --water:#6E8B7B; --house:#B7A98C; --soft:#D8CDB8; --code-bg:#2B2722; --code-fg:#EDE6DA;
+  --serif:Georgia,"Times New Roman",serif;
+  --sans:"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+  --rail-w:236px;
+  color-scheme:light;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{background:var(--stone);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--taupe);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- rail ---------- */
+#rail{position:fixed;top:0;left:0;bottom:0;width:var(--rail-w);background:var(--rail-bg);color:var(--rail-fg);display:flex;flex-direction:column;z-index:40;overflow-y:auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.rail-head{padding:26px 22px 18px;border-bottom:1px solid var(--rail-line)}
+.rail-head .eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--rail-mute)}
+.rail-head h1{font-family:var(--serif);font-weight:normal;font-size:19px;line-height:1.25;margin-top:6px;color:var(--rail-head)}
+.rail-group{padding:16px 0 4px}
+.rail-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--rail-mute);padding:0 22px;margin-bottom:8px}
+.rail-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;color:var(--rail-fg);font-size:13px;padding:9px 22px;cursor:pointer;border-left:2px solid transparent}
+.rail-item:hover{background:rgba(255,255,255,.05);color:var(--paper)}
+.rail-item.active{background:rgba(255,255,255,.07);color:var(--paper);border-left-color:var(--taupe)}
+.rail-item .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.rail-item .code{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.rail-item .tier{margin-left:auto;font-size:10px;color:var(--rail-mute);letter-spacing:.08em}
+.rail-foot{margin-top:auto;padding:16px 22px 20px;border-top:1px solid var(--rail-line);font-size:10.5px;color:var(--rail-mute);line-height:1.6}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-right:6px;animation:pulse 2.2s infinite}
+.live-dot.off{background:var(--crit);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+#scrim{display:none}
+
+/* ---------- top stack ---------- */
+#main{margin-left:var(--rail-w);min-height:100vh}
+.topstack{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--stone)}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 34px;border-bottom:1px solid var(--line)}
+.top-left{display:flex;align-items:center;gap:14px;min-width:0}
+.top-left .crumb{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.top-left .page{font-family:var(--serif);font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
+.menu-btn{display:none;background:none;border:1px solid var(--line);width:36px;height:34px;cursor:pointer;flex:0 0 auto}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);margin:3px auto}
+.viewas{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.viewas select{font:inherit;font-size:12.5px;letter-spacing:0;text-transform:none;color:var(--ink);background:var(--paper);border:1px solid var(--line);padding:5px 8px}
+.srcpill{display:inline-flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);background:var(--paper);padding:5px 10px;cursor:pointer;color:var(--ink2)}
+.srcpill:hover{border-color:var(--taupe)}
+.stamp{font-size:11px;color:var(--mute);text-align:right;line-height:1.4}
+.stamp b{color:var(--ink2);font-variant-numeric:tabular-nums}
+.logo-wrap img{height:54px;display:block}
+.wordmark{font-family:var(--serif);font-size:15px;color:var(--ink2);letter-spacing:.02em}
+#tabbar{display:flex;gap:2px;padding:0 34px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+#tabbar::-webkit-scrollbar{display:none}
+.tab{background:none;border:0;border-bottom:2px solid transparent;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--mute);padding:12px 16px 10px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--ink);border-bottom-color:var(--taupe);font-weight:600}
+.tab .new{font-size:9px;letter-spacing:.1em;color:var(--good);margin-left:6px}
+
+.wrap{padding:28px 34px 60px;max-width:1340px}
+.demo-banner{display:flex;align-items:flex-start;gap:10px;background:var(--warn-bg);border:1px solid var(--banner-line);color:var(--banner-fg);font-size:12px;letter-spacing:.02em;padding:9px 14px;margin-bottom:22px}
+.demo-banner b{font-weight:600}
+.chip{display:inline-block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:2px 8px;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
+.errbar{display:none;background:var(--crit-bg);border:1px solid var(--err-line);color:var(--crit);font-size:12.5px;padding:9px 14px;margin-bottom:18px}
+.errbar.on{display:block}
+
+/* hero */
+.hero{margin:6px 0 26px;max-width:860px}
+.hero .eyebrow{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--taupe);margin-bottom:10px}
+.hero h2{font-family:var(--serif);font-weight:normal;font-size:40px;line-height:1.14;letter-spacing:-.01em;text-wrap:balance}
+.hero p{margin-top:12px;color:var(--ink2);font-size:15px;max-width:640px}
+
+/* provenance chips */
+.src{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border:1px solid var(--line);background:var(--paper);color:var(--ink2);cursor:pointer;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.src i{width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:var(--good)}
+.src.static{cursor:default;color:var(--mute)}
+.src.static i{background:var(--sand)}
+.src.gap i{background:var(--crit)}
+.src:not(.static):hover{border-color:var(--good)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px 10px;margin-bottom:4px;flex-wrap:wrap}
+.card-top h3{margin-bottom:0}
+.strip-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.strip-head .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:28px}
+.kpis.k4{grid-template-columns:repeat(4,1fr)} .kpis.k5{grid-template-columns:repeat(5,1fr)}
+.kpi{background:var(--paper);padding:18px 18px 16px;position:relative;min-width:0}
+.kpi .k-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.kpi .k-val{font-family:var(--serif);font-size:30px;margin-top:8px;font-variant-numeric:tabular-nums}
+.kpi .k-val small{font-size:15px;color:var(--mute)}
+.kpi .k-sub{font-size:11.5px;color:var(--mute);margin-top:4px}
+.kpi .k-sub b{font-weight:600}
+.kpi .tick{position:absolute;top:12px;right:12px;width:6px;height:6px;border-radius:50%;background:var(--sand);transition:background .3s}
+.kpi .tick.on{background:var(--good)}
+.up{color:var(--good)} .down{color:var(--crit)} .amber{color:var(--warn)}
+.flash{animation:flash 1.1s ease}
+@keyframes flash{0%{background:var(--good-bg)}100%{background:transparent}}
+
+/* cards / grid */
+.grid{display:grid;gap:22px}
+.g-2{grid-template-columns:1.55fr 1fr}
+.g-3{grid-template-columns:repeat(3,1fr)}
+.g-halves{grid-template-columns:1fr 1fr}
+.grid>*{min-width:0}
+.card{background:var(--paper);border:1px solid var(--line);padding:22px 24px;position:relative}
+.card h3{font-family:var(--serif);font-weight:normal;font-size:18px;margin-bottom:4px}
+.card .sub{font-size:12px;color:var(--mute);margin-bottom:16px}
+section.block{margin-bottom:24px}
+.static-note{display:none;font-size:12.5px;color:var(--mute);border:1px dashed var(--sand);padding:14px 16px;background:var(--stone)}
+body.not-demo [data-static] .static-body{display:none}
+body.not-demo [data-static] .static-note{display:block}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* map */
+#uaemap{width:100%;height:auto;display:block}
+.map-note{font-size:11px;color:var(--mute);margin-top:10px}
+.land{fill:#E9E2D4;stroke:#CBC0A9;stroke-width:1.5}
+.sea-label{font-family:var(--serif);font-size:12px;fill:#A79A82;font-style:italic}
+.pin{cursor:pointer}
+.pin circle.halo{fill:none;stroke:var(--taupe);stroke-width:1;opacity:0;animation:halo 3s infinite}
+.pin.t1 circle.core{fill:var(--ink)} .pin.t2 circle.core{fill:var(--ink2)} .pin.t3 circle.core{fill:var(--taupe)}
+.pin text{font-family:var(--sans);font-size:10.5px;fill:#4B463F;letter-spacing:.04em}
+.pin:hover circle.core{fill:var(--warn)}
+@keyframes halo{0%{r:6;opacity:.55}70%{r:15;opacity:0}100%{r:15;opacity:0}}
+
+/* leaderboard */
+.lb-row{display:flex;align-items:center;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.lb-row:last-child{border-bottom:0}
+.lb-row:hover{background:var(--hover)}
+.lb-rank{width:20px;font-family:var(--serif);color:var(--mute);font-size:13px}
+.lb-code{width:78px;font-weight:600;letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.lb-em{width:96px;font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-bar{flex:1;height:5px;background:var(--grid);position:relative;min-width:30px}
+.lb-bar i{position:absolute;left:0;top:0;bottom:0;transition:width .8s}
+.lb-score{width:38px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+
+/* charts */
+.chart-svg{width:100%;height:auto;display:block}
+.c-grid{stroke:var(--grid)} .c-axis{fill:var(--mute);font-size:10px;font-family:var(--sans)}
+.c-plan{fill:none;stroke:var(--crit);stroke-width:1;stroke-dasharray:3 2}
+.c-act{fill:var(--ink2)} .c-act-val{fill:var(--ink);font-size:8.5px;font-weight:600;font-family:var(--sans)}
+.c-plan-val{fill:var(--crit);font-size:8.5px;font-family:var(--sans)}
+.c-ghost{fill:none;stroke:#C6BBA4;stroke-dasharray:3 2}
+.legend{display:flex;gap:18px;font-size:11.5px;color:var(--ink2);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px}
+
+/* property view */
+.prop-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.prop-head h2{font-family:var(--serif);font-weight:normal;font-size:38px;letter-spacing:.01em}
+.prop-meta{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line);background:var(--paper);padding:4px 10px;color:var(--ink2)}
+.ring-wrap{text-align:center}
+.ring-wrap .ring-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);margin-top:6px}
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.stat-row:last-child{border-bottom:0}
+.stat-row .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.mini-label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.big{font-family:var(--serif);font-size:26px;font-variant-numeric:tabular-nums;margin-top:4px}
+.big small{font-size:14px;color:var(--mute)}
+.hbar{height:6px;background:var(--grid);margin:6px 0 12px;position:relative}
+.hbar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink2);transition:width .6s}
+.hbar i.plan-mark{background:none;border-right:2px solid var(--crit);width:0}
+table.kpit{width:100%;border-collapse:collapse;font-size:12.5px}
+table.kpit th{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap}
+table.kpit td{padding:8px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+table.kpit tr:last-child td{border-bottom:0}
+.score-pill{display:inline-block;min-width:46px;text-align:center;padding:2px 8px;font-weight:600;font-size:12px;border-radius:2px}
+.sp-good{background:var(--good-bg);color:var(--good)} .sp-warn{background:var(--warn-bg);color:var(--warn-fg)} .sp-crit{background:var(--crit-bg);color:var(--crit)}
+.comp-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.comp-item:last-child{border-bottom:0}
+.comp-item .st{margin-left:auto;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--good)}
+.phase-strip{display:flex;align-items:center;gap:16px;background:var(--rail-bg);color:var(--rail-fg);padding:18px 24px;margin-top:24px;flex-wrap:wrap}
+.phase-strip .ph{flex:1;min-width:200px}
+.phase-strip .ph .t{font-family:var(--serif);font-size:15px;color:var(--rail-head)}
+.phase-strip .ph .d{font-size:11.5px;color:var(--rail-mute);margin-top:3px}
+.phase-strip .arrow{font-family:var(--serif);font-size:20px;color:var(--taupe)}
+.back-link{background:none;border:0;color:var(--taupe);font-size:12px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;margin-bottom:14px;padding:0}
+.back-link:hover{color:var(--ink)}
+.zone-legend{display:flex;gap:16px;font-size:11px;color:var(--mute);margin-top:10px;flex-wrap:wrap}
+.zone-legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+.z-nom{fill:#DCE6DA} .z-watch{fill:#F0E4C4} .z-att{fill:#EFD8D0}
+.zone rect{stroke:#C6BBA4;stroke-width:1} .zone .zn{font-family:var(--serif);font-size:11.5px;fill:#4B463F} .zone .zv{font-size:10px;fill:var(--mute)}
+
+/* attention / movements / lists */
+.attn{border-left:3px solid var(--warn)}
+.attn-row{display:flex;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);font-size:12.5px;align-items:baseline}
+.attn-row:last-child{border-bottom:0}
+.attn-row .a-code{font-weight:600;min-width:74px}
+.attn-row .a-cause{flex:1;color:var(--ink2);min-width:0}
+.attn-row .a-act{flex:1;color:var(--ink);min-width:0}
+.attn-row .a-act b{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--taupe);display:block}
+.attn-row .a-act .unassigned{color:var(--crit)}
+.mv-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.mv-row:last-child{border-bottom:0}
+.hb-row{margin-bottom:10px}
+.hb-top{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:3px}
+.hb-top .v{font-weight:600;font-variant-numeric:tabular-nums}
+.hb-track{height:6px;background:var(--grid);position:relative}
+.hb-track i{position:absolute;left:0;top:0;bottom:0}
+tr.sel-row{cursor:pointer}
+tr.sel-row:hover td{background:var(--hover)}
+tr.sel-row.selected td{background:var(--sel)}
+.pillst{display:inline-block;font-size:10.5px;letter-spacing:.06em;padding:2px 9px;border-radius:2px;font-weight:600;white-space:nowrap}
+.st-ontrack{background:var(--good-bg);color:var(--good)} .st-risk{background:var(--warn-bg);color:var(--warn-fg)}
+.st-overdue{background:var(--crit-bg);color:var(--crit)} .st-done{background:var(--neutral-bg);color:var(--ink2)}
+.risk-critical{background:var(--crit-bg);color:var(--crit)} .risk-high{background:var(--warn-bg);color:var(--warn-fg)}
+.risk-medium{background:#EAE6DA;color:var(--ink2)} .risk-low{background:var(--good-bg);color:var(--good)}
+.tl{margin-top:6px}
+.tl-row{display:flex;gap:14px;align-items:flex-start;padding:7px 0}
+.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--sand);background:var(--paper);flex:0 0 auto;margin-top:2px}
+.tl-row.done .tl-dot{background:var(--good);border-color:var(--good)}
+.tl-row.now .tl-dot{background:var(--paper);border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-bg)}
+.tl-body{flex:1;border-bottom:1px dashed var(--line);padding-bottom:7px;display:flex;justify-content:space-between;gap:10px;min-width:0}
+.tl-row:last-child .tl-body{border-bottom:0}
+.tl-name{font-size:12.5px}
+.tl-row.done .tl-name{color:var(--ink2)}
+.tl-date{font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.qa-row{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.qa-row:last-child{border-bottom:0}
+.qa-text{flex:1;outline:none;padding:2px 4px;min-width:0}
+.qa-text:focus{background:var(--hover)}
+.qa-q{width:64px;color:var(--mute);font-variant-numeric:tabular-nums}
+.qa-st{cursor:pointer;user-select:none;border:0}
+.filters,.subtabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.fchip,.subtab{background:var(--paper);border:1px solid var(--line);font-size:11px;letter-spacing:.08em;padding:5px 14px;cursor:pointer;color:var(--mute)}
+.subtab{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;padding:7px 16px}
+.fchip.active,.subtab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.dd-note{font-size:11px;color:var(--mute);font-style:italic;margin-top:8px}
+.def-block h4{font-family:var(--serif);font-weight:normal;font-size:15px;margin:16px 0 6px}
+.def-block p,.def-block li{font-size:12.5px;color:var(--ink2);line-height:1.6}
+.formula{font-family:var(--serif);font-size:15px;background:var(--hover);border:1px solid var(--line);padding:12px 16px;margin:8px 0}
+.mono{font-family:var(--mono);font-size:11.5px}
+
+/* data pipeline tab */
+.flow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;align-items:stretch;margin-top:6px}
+.fnode{position:relative;background:var(--paper);border:1px solid var(--line);padding:14px 14px 12px;margin-right:22px;min-width:0}
+.fnode:last-child{margin-right:0}
+.fnode:not(:last-child)::after{content:"";position:absolute;right:-18px;top:50%;width:14px;height:1px;background:var(--taupe)}
+.fnode:not(:last-child)::before{content:"";position:absolute;right:-19px;top:calc(50% - 3px);border:3px solid transparent;border-left:5px solid var(--taupe)}
+.fnode.core{background:var(--rail-bg);color:var(--rail-fg);border-color:var(--rail-bg)}
+.fnode.core .fn-k,.fnode.core .fn-s{color:var(--rail-mute)}
+.fnode.core .fn-t{color:var(--rail-head)}
+.fn-k{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.fn-t{font-family:var(--serif);font-size:15px;margin-top:4px}
+.fn-s{font-size:11.5px;color:var(--ink2);margin-top:6px;line-height:1.45}
+.fn-v{font-family:var(--mono);font-size:11.5px;margin-top:8px}
+.fnode.ping{box-shadow:0 0 0 2px var(--good)}
+.feed-row{display:grid;grid-template-columns:62px 112px 1fr;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12px;align-items:baseline}
+.feed-row:last-child{border-bottom:0}
+.feed-row .ft{color:var(--mute);font-variant-numeric:tabular-nums}
+.feed-row .fs{display:flex;align-items:center;gap:6px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-row .fs i{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.feed-row .fd{min-width:0;overflow-wrap:anywhere}
+.feed-row .fd b{font-weight:600}
+.feed-row.new{animation:flash 1.4s ease}
+.test-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.btn{background:var(--ink);color:var(--paper);border:1px solid var(--ink);font-size:11.5px;letter-spacing:.06em;padding:7px 12px;cursor:pointer}
+.btn.ghost{background:var(--paper);color:var(--ink)}
+.btn:hover{background:var(--ink2)}
+.btn.ghost:hover{background:var(--hover)}
+.pass{color:var(--good);font-weight:600} .fail{color:var(--crit);font-weight:600}
+
+/* trace drawer */
+#trace{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-12px 0 30px rgba(38,34,30,.12);z-index:60;transform:translateX(105%);transition:transform .25s ease;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#trace.open{transform:none}
+.tr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 20px 12px;border-bottom:1px solid var(--line)}
+.tr-head h3{font-family:var(--serif);font-weight:normal;font-size:18px}
+.tr-body{padding:14px 20px 24px;overflow-y:auto}
+.tr-close{background:none;border:1px solid var(--line);width:32px;height:32px;cursor:pointer;font-size:16px;line-height:1;flex:0 0 auto}
+pre.json{background:var(--code-bg);color:var(--code-fg);font-family:var(--mono);font-size:11px;line-height:1.5;padding:12px 14px;overflow-x:auto;margin-top:8px;white-space:pre}
+.tr-sec{margin-top:14px}
+
+footer.page-foot{margin-left:var(--rail-w);padding:22px 34px;border-top:1px solid var(--line);font-size:11px;color:var(--mute);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .kpis.k4{grid-template-columns:repeat(2,1fr)}
+  .kpis.k5{grid-template-columns:repeat(3,1fr)}
+  .g-2,.g-3,.g-halves{grid-template-columns:1fr}
+  .flow{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:16px}
+  .fnode:nth-child(3n)::after,.fnode:nth-child(3n)::before{display:none}
+  .fnode:nth-child(3n){margin-right:0}
+}
+@media (max-width:900px){
+  #rail{transform:translateX(-100%);transition:transform .25s ease}
+  body.rail-open #rail{transform:none;box-shadow:12px 0 30px rgba(0,0,0,.25)}
+  body.rail-open #scrim{display:block;position:fixed;inset:0;background:rgba(38,34,30,.35);z-index:35}
+  #main,footer.page-foot{margin-left:0}
+  .menu-btn{display:block}
+  header.top{padding:10px 16px;flex-wrap:wrap}
+  #tabbar{padding:0 8px}
+  .wrap{padding:18px 16px 48px}
+  footer.page-foot{padding:18px 16px}
+  .logo-wrap img{height:36px}
+  .hero h2{font-size:30px}
+}
+@media (max-width:620px){
+  .kpis,.kpis.k4,.kpis.k5{grid-template-columns:repeat(2,1fr)}
+  .kpi{padding:14px 12px}
+  .kpi .k-val{font-size:24px}
+  .card{padding:18px 16px}
+  .topstack{position:static}
+  .top-left .crumb,.viewas-t{display:none}
+  .top-right{width:100%;justify-content:space-between;gap:10px;flex-wrap:nowrap}
+  .viewas select{max-width:52vw}
+  .sl-x{display:none}
+  .stamp,.logo-wrap{display:none}
+  .flow{grid-template-columns:1fr}
+  .fnode{margin-right:0;margin-bottom:18px}
+  .fnode:not(:last-child)::after{right:auto;left:50%;top:auto;bottom:-15px;width:1px;height:12px;display:block}
+  .fnode:not(:last-child)::before{right:auto;left:calc(50% - 3px);top:auto;bottom:-19px;border:3px solid transparent;border-top:5px solid var(--taupe);display:block}
+  .attn-row{flex-direction:column;gap:4px}
+  .feed-row{grid-template-columns:56px 1fr}
+  .feed-row .fs{grid-column:2}
+  .feed-row .fd{grid-column:1/-1}
+  .prop-head h2{font-size:30px}
+  .lb-em{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .pin circle.halo,.live-dot{animation:none}
+  .flash,.feed-row.new{animation:none}
+  #trace,#rail{transition:none}
+}
+</style>
+</head>
+<body>
+<!-- ================= LEFT RAIL ================= -->
+<nav id="rail" aria-label="Portfolio navigation">
+  <div class="rail-head">
+    <div class="eyebrow"><!--BRAND-->Wasael Property Management<!--/BRAND--></div>
+    <h1>Portfolio<br>Intelligence</h1>
+  </div>
+  <div class="rail-group">
+    <div class="rail-label">Navigate</div>
+    <button class="rail-item active" id="nav-overview"><span class="dot" style="background:var(--taupe)"></span>Home — Portfolio</button>
+  </div>
+  <div id="rail-groups"></div>
+  <div class="rail-foot">
+    <span class="live-dot" id="rail-dot"></span><span id="rail-src">Connecting…</span><br>
+    Rows filtered per client in the database<br>
+    Coded estates · no client identifiers
+  </div>
+</nav>
+<div id="scrim"></div>
+
+<!-- ================= MAIN ================= -->
+<div id="main">
+  <div class="topstack">
+    <header class="top">
+      <div class="top-left">
+        <button class="menu-btn" id="menu-btn" aria-label="Open estate list"><span></span><span></span><span></span></button>
+        <span class="crumb" id="crumb">Console</span>
+        <span class="page" id="page-title">Portfolio Overview</span>
+      </div>
+      <div class="top-right">
+        <label class="viewas" for="client-sel"><span class="viewas-t">Viewing as</span>
+          <select id="client-sel">
+            <option value="CL01">CL01 · client portal user</option>
+            <option value="CL02">CL02 · client portal user</option>
+          </select>
+        </label>
+        <button class="srcpill" id="srcpill" title="Open the data pipeline view"><span class="live-dot" id="src-dot"></span><span id="src-label">Connecting</span></button>
+        <div class="stamp">Last refresh <b id="clock">—</b><br><span id="stamp-sub">—</span></div>
+        <div class="logo-wrap"><!--BRAND--><img src="img/brand-logo.svg" alt="Wasael Property Management"><!--/BRAND--></div>
+      </div>
+    </header>
+    <nav id="tabbar" aria-label="Dimension navigation">
+      <button class="tab active" data-tab="home">Home</button>
+      <button class="tab" data-tab="finance">Finance</button>
+      <button class="tab" data-tab="assetmgmt">Asset Management</button>
+      <button class="tab" data-tab="procurement">Procurement</button>
+      <button class="tab" data-tab="projects">Projects &amp; On-Demand</button>
+      <button class="tab" data-tab="pipeline">Data Pipeline<span class="new">POC</span></button>
+      <button class="tab" data-tab="definitions">Definitions &amp; Method</button>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    <div class="demo-banner">
+      <span class="chip">POC</span>
+      <span id="banner-text">Proof of concept. Panels marked <b>LIVE</b> read the data contract through <span data-stk="api">Data API builder</span>, filtered to the signed-in client by the database. Panels marked <b>STATIC</b> are illustrative and not on the contract yet. All data is synthetic; estates are coded.</span>
+    </div>
+    <div class="errbar" id="errbar"></div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section id="view-overview">
+      <div class="hero">
+        <div class="eyebrow">Transparency Trust · Innovation Trust</div>
+        <h2>One portfolio. <span id="hero-n">Ten assets</span>.<br>Complete visibility.</h2>
+        <p>Consolidated operational, financial and asset-health intelligence across the managed estate, read live from CAFM, ERP, time &amp; attendance and environmental monitoring through one governed API.</p>
+      </div>
+
+      <div class="strip-head"><span class="lbl">Portfolio headline · <span id="kpi-period">—</span></span><button class="src" data-entity="vw_portfolio_kpi"><i></i>Live · vw_portfolio_kpi</button></div>
+      <div class="kpis" id="kpi-strip"></div>
+
+      <section class="block grid g-2">
+        <div class="card attn">
+          <div class="card-top"><h3>Attention &amp; Actions</h3><button class="src" data-entity="vw_exceptions"><i></i>Live · vw_exceptions</button></div>
+          <div class="sub">Exceptions computed from thresholds in the database · actions logged by the owning team</div>
+          <div id="attn-list"></div>
+        </div>
+        <div class="card" data-static>
+          <div class="card-top"><h3>Top Movements</h3><span class="src static"><i></i>Static · trend store next phase</span></div>
+          <div class="sub">Largest changes across the portfolio · trailing 30 days</div>
+          <div class="static-body">
+            <div class="mv-row"><span>Portfolio energy vs 2025 (Jan–Jul)</span><span class="up" style="font-weight:600">−6.9%</span></div>
+            <div class="mv-row"><span>Water consumption vs 2025</span><span class="up" style="font-weight:600">−4.1%</span></div>
+            <div class="mv-row"><span>PPM completion (90d rolling)</span><span class="up" style="font-weight:600">+0.6 pt</span></div>
+            <div class="mv-row"><span>Aged work-order backlog</span><span class="up" style="font-weight:600">−8 items</span></div>
+            <div class="mv-row"><span>SP11136 Invisible Care Index</span><span class="amber" style="font-weight:600">−3 pts</span></div>
+            <div class="mv-row"><span>Avg tender cycle (scope→go-live)</span><span style="font-weight:600">181 days</span></div>
+            <div class="dd-note">Trend detection needs a history store (daily snapshots of the contract views); planned for the predictive phase.</div>
+          </div>
+          <div class="static-note">Illustrative figures exist for CL01 only. This panel has no contract source yet, so it has nothing to show for another client.</div>
+        </div>
+      </section>
+
+      <section class="block grid g-2">
+        <div class="card">
+          <div class="card-top"><h3>Managed Estate — United Arab Emirates</h3><button class="src" data-entity="vw_estate"><i></i>Live · vw_estate</button></div>
+          <div class="sub" id="map-sub">—</div>
+          <svg id="uaemap" viewBox="0 0 700 500" role="img" aria-label="Stylised map of the UAE with coded asset locations">
+            <path class="land" d="M 63.2,281.6 L 136.7,281.6 L 219.6,261.3 L 338.1,266.9 L 391.5,241.0 L 438.9,204.9 L 475.6,176.7 L 504.1,151.8 L 533.7,125.9 L 569.3,94.3 L 589.4,62.7 L 606.0,69.5 L 610.7,112.4 L 627.3,148.5 L 629.7,182.3 L 610.7,199.2 L 581.1,193.6 L 561.0,233.1 L 558.6,292.9 L 531.3,306.4 L 492.2,441.8 L 181.7,414.7 Z" stroke-linejoin="round"/>
+            <text x="150" y="200" class="sea-label">Arabian Gulf</text>
+            <g id="pins"></g>
+          </svg>
+          <div class="map-note">Stylised representation · pin positions approximate · assets identified by service codes only</div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Asset Health Ranking</h3><button class="src" data-entity="vw_invisible_care"><i></i>Live · vw_invisible_care</button></div>
+          <div class="sub">Invisible Care Index = 40% environmental · 30% PPM compliance · 20% critical work orders · 10% asset condition</div>
+          <div id="leaderboard"></div>
+        </div>
+      </section>
+
+      <section class="block grid g-halves">
+        <div class="card">
+          <div class="card-top"><h3>Portfolio OPEX — Actual vs Planned</h3><button class="src" data-entity="vw_finance_monthly"><i></i>Live · vw_finance_monthly</button></div>
+          <div class="sub" id="opex-sub">AED million · monthly</div>
+          <svg class="chart-svg" id="opex-chart" viewBox="0 0 560 240"></svg>
+          <div class="legend"><span><i style="background:var(--ink2)"></i>Actual</span><span><i style="border:1px dashed var(--crit);height:8px"></i>Planned</span></div>
+        </div>
+        <div class="card" data-static>
+          <div class="card-top"><h3>Energy Consumption — Year on Year</h3><span class="src static gap"><i></i>Static · M080 gap</span></div>
+          <div class="sub">Portfolio total · 2026 vs 2025 · MWh indexed · utility bills are paper today</div>
+          <div class="static-body">
+            <svg class="chart-svg" id="energy-chart" viewBox="0 0 560 240"></svg>
+            <div class="legend"><span><i style="background:var(--taupe)"></i>2026</span><span><i style="background:var(--sand)"></i>2025</span><span class="up" style="margin-left:auto;font-weight:600">−6.9% YoY (Jan–Jul)</span></div>
+          </div>
+          <div class="static-note">Energy has no digital source yet (mapping M080: DEWA/ADDC bills are keyed by hand). The CL01 chart is illustrative only.</div>
+        </div>
+      </section>
+
+      <section class="block grid g-3">
+        <div class="card">
+          <div class="card-top"><h3>OPEX by Cost Dimension</h3><button class="src" data-entity="vw_finance_dimension"><i></i>Live</button></div>
+          <div class="sub">AED million · YTD actual vs plan per ERP dimension</div>
+          <div id="costdim"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Service Delivery</h3><button class="src" data-entity="vw_portfolio_kpi"><i></i>Live</button></div>
+          <div class="sub">CAFM-governed, SFG20-aligned maintenance regime</div>
+          <div id="svc-card"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>People on Site</h3><button class="src" data-entity="vw_hr"><i></i>Live · vw_hr</button></div>
+          <div class="sub">Clocked in now, by category · against roster plan</div>
+          <div id="people-card"></div>
+        </div>
+      </section>
+
+      <section class="block grid g-3">
+        <div class="card">
+          <div class="card-top"><h3>Procurement Pipeline</h3><button class="src" data-entity="vw_tender"><i></i>Live</button></div>
+          <div class="sub">Tenders by latest milestone reached · detail in Procurement</div>
+          <div id="proc-pipe"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Projects Pipeline</h3><button class="src" data-entity="vw_works"><i></i>Live</button></div>
+          <div class="sub">Volume by current stage · projects &amp; on-demand</div>
+          <div id="proj-pipe"></div>
+        </div>
+        <div class="card" data-static>
+          <div class="card-top"><h3>HSE &amp; Compliance</h3><span class="src static"><i></i>Static · M050 partial</span></div>
+          <div class="sub">Part of the HSE register still sits in SharePoint lists</div>
+          <div class="static-body">
+            <div class="stat-row"><span>Lost-time injuries (YTD)</span><span class="v up">0</span></div>
+            <div class="stat-row"><span>LTI-free days</span><span class="v">418</span></div>
+            <div class="stat-row"><span>Near-miss close-out rate</span><span class="v">96%</span></div>
+            <div class="stat-row"><span>Permit-to-work compliance</span><span class="v">99.4%</span></div>
+            <div class="stat-row"><span>Civil Defence certificates</span><span class="v up">10 / 10</span></div>
+            <div class="stat-row"><span>Management system</span><span class="v">ISO 9001 · 14001 · 45001</span></div>
+          </div>
+          <div class="static-note">HSE is not on the contract yet (M050 partial, M051 pending visibility red-lines). The CL01 figures are illustrative.</div>
+        </div>
+      </section>
+
+      <section class="block grid g-halves">
+        <div class="card" data-static>
+          <div class="card-top"><h3>Water Consumption — by Category</h3><span class="src static gap"><i></i>Static · M081 gap</span></div>
+          <div class="sub">'000 m³ · landscaping vs household · actuals through July</div>
+          <div class="static-body">
+            <svg class="chart-svg" id="water-chart" viewBox="0 0 560 240"></svg>
+            <div class="legend"><span><i style="background:var(--water)"></i>Landscaping &amp; irrigation</span><span><i style="background:var(--house)"></i>Household &amp; domestic</span><span class="up" style="margin-left:auto;font-weight:600">−4.1% YoY</span></div>
+          </div>
+          <div class="static-note">Water has no digital source yet (mapping M081). Metering or a utility API feed needs scoping first.</div>
+        </div>
+        <div class="card" data-static>
+          <div class="card-top"><h3>Spares Management</h3><span class="src static"><i></i>Static · not mapped</span></div>
+          <div class="sub">Spare parts inventory · portfolio stores · AED million</div>
+          <div class="static-body">
+            <div class="mini-label">Total inventory value</div>
+            <div class="big">18.6 <small>AED m</small></div>
+            <div style="height:8px"></div>
+            <div id="spares"></div>
+          </div>
+          <div class="static-note">Stores inventory is not in the mapping workbook yet.</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ PROPERTY ============ -->
+    <section id="view-property" hidden>
+      <button class="back-link" id="back-btn">← Portfolio Overview</button>
+      <div class="prop-head">
+        <div>
+          <div style="font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--taupe)">Asset Console</div>
+          <h2 id="p-code">—</h2>
+          <div class="prop-meta" id="p-meta"></div>
+        </div>
+        <div class="ring-wrap">
+          <svg width="110" height="110" viewBox="0 0 110 110" aria-label="Invisible Care Index">
+            <circle cx="55" cy="55" r="46" fill="none" style="stroke:var(--grid)" stroke-width="8"/>
+            <circle id="p-ring" cx="55" cy="55" r="46" fill="none" stroke-width="8" stroke-dasharray="289" stroke-dashoffset="289" transform="rotate(-90 55 55)" style="stroke:var(--good);transition:stroke-dashoffset .9s"/>
+            <text id="p-ring-val" x="55" y="62" text-anchor="middle" style="font-family:var(--serif);font-size:24px;fill:var(--ink)">—</text>
+          </svg>
+          <div class="ring-label">Invisible Care Index</div>
+        </div>
+      </div>
+
+      <section class="block grid g-2">
+        <div class="card">
+          <div class="card-top"><h3>Estate Plan View</h3><button class="src" data-entity="vw_invisible_care"><i></i>Live</button></div>
+          <div class="sub">Illustrative zoning schematic · zones tinted by live environmental indices · not a survey plan</div>
+          <svg id="planview" class="chart-svg" viewBox="0 0 640 300"></svg>
+          <div class="zone-legend"><span><i style="background:#DCE6DA"></i>Nominal ≥92</span><span><i style="background:#F0E4C4"></i>Watch 85–91</span><span><i style="background:#EFD8D0"></i>Attention &lt;85</span></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Environmental Monitoring</h3><button class="src" data-entity="vw_invisible_care"><i></i>Live · vw_invisible_care</button></div>
+          <div class="sub">Invisible Care sensor network · 15-minute window per metric</div>
+          <div id="env-list"></div>
+        </div>
+      </section>
+
+      <section class="block grid g-3">
+        <div class="card">
+          <div class="card-top"><h3>Financial</h3><button class="src" data-entity="vw_finance"><i></i>Live · vw_finance</button></div>
+          <div class="sub" id="f-sub">AED million</div>
+          <div class="mini-label">OPEX — YTD actual vs plan</div>
+          <div class="big" id="f-opex">—</div>
+          <div class="hbar"><i id="f-opex-bar" style="width:0%"></i><i class="plan-mark" id="f-opex-mark"></i></div>
+          <div class="mini-label">CAPEX — programme drawdown</div>
+          <div class="big" id="f-capex">—</div>
+          <div class="hbar"><i id="f-capex-bar" style="width:0%;background:var(--taupe)"></i><i class="plan-mark" id="f-capex-mark"></i></div>
+          <div class="stat-row"><span>Annualised OPEX</span><span class="v" id="f-fc">—</span></div>
+          <div class="stat-row"><span>Variance to plan (YTD)</span><span class="v" id="f-var">—</span></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Operational</h3><button class="src" data-entity="vw_hr"><i></i>Live · vw_hr</button></div>
+          <div class="sub">Deployed workforce · clocked in now</div>
+          <div class="mini-label">Personnel on site now</div>
+          <div class="big" id="o-staff">—</div>
+          <div id="o-mix"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>CAFM — Maintenance</h3><button class="src" data-entity="vw_service_delivery"><i></i>Live · vw_service_delivery</button></div>
+          <div class="sub">SFG20-aligned · digital work-order lifecycle</div>
+          <div id="cafm-list"></div>
+        </div>
+      </section>
+
+      <section class="block grid g-halves">
+        <div class="card" data-static>
+          <div class="card-top"><h3>Service Partner Performance</h3><span class="src static"><i></i>Static · not mapped</span></div>
+          <div class="sub">KPI health of Wasael teams and specialist subcontractors · contract scorecards</div>
+          <div class="static-body"><div class="tbl-wrap"><table class="kpit"><thead><tr><th>Service line</th><th>Partner type</th><th>SLA</th><th>Score</th></tr></thead><tbody id="kpi-table"></tbody></table></div></div>
+          <div class="static-note">Partner scorecards are not on the contract yet.</div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Asset Registry &amp; Lifecycle</h3><button class="src" data-entity="vw_asset_mgmt"><i></i>Live · vw_asset_mgmt</button></div>
+          <div class="sub">Condition survey summary for this estate</div>
+          <div class="mini-label">Assets in good / fair condition</div>
+          <div class="hbar" style="margin-top:8px"><i id="a-life" style="width:0%;background:var(--good)"></i></div>
+          <div id="asset-list"></div>
+        </div>
+      </section>
+
+      <section class="block grid g-halves" data-static>
+        <div class="card">
+          <div class="card-top"><h3>Water &amp; Energy</h3><span class="src static gap"><i></i>Static · M080/M081 gap</span></div>
+          <div class="sub">Utilities are keyed from paper bills today</div>
+          <div class="static-body"><div id="p-util-stats"></div></div>
+          <div class="static-note">No digital utilities source exists for this estate yet.</div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Statutory Register</h3><span class="src static"><i></i>Static · M050 partial</span></div>
+          <div class="sub">Certification posture for this asset</div>
+          <div class="static-body"><div id="comp-list"></div></div>
+          <div class="static-note">The statutory register is partly in SharePoint and not on the contract yet.</div>
+        </div>
+      </section>
+
+      <div class="phase-strip">
+        <div class="ph"><div class="t">Descriptive — today</div><div class="d">Live contract views through <span data-stk="api">Data API builder</span>: CAFM, ERP, T&amp;A, environmental monitoring</div></div>
+        <div class="arrow">→</div>
+        <div class="ph"><div class="t">Predictive — next phase</div><div class="d">Daily snapshots of the same views feed trend detection, failure forecasting and energy models</div></div>
+      </div>
+    </section>
+
+    <!-- ============ FINANCE ============ -->
+    <section id="view-finance" hidden>
+      <div class="hero" style="margin-bottom:22px"><div class="eyebrow">Finance</div><h2 style="font-size:32px">Portfolio financial performance</h2></div>
+      <section class="block grid g-halves">
+        <div class="card">
+          <div class="card-top"><h3>OPEX — Actual vs Planned</h3><button class="src" data-entity="vw_finance_monthly"><i></i>Live</button></div>
+          <div class="sub">AED million · monthly with values · cumulative YTD beneath</div>
+          <svg class="chart-svg" id="fin-opex-chart" viewBox="0 0 560 270"></svg>
+          <div id="fin-opex-ytd" style="font-size:12.5px;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Cost Dimensions — Variance Detail</h3><button class="src" data-entity="vw_finance_dimension"><i></i>Live</button></div>
+          <div class="sub">AED million · YTD actual vs plan per ERP dimension</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Dimension</th><th>Plan</th><th>Actual</th><th>Var</th></tr></thead><tbody id="fin-dim-table"></tbody></table></div>
+          <div class="dd-note">Dimension taxonomy follows the D365 cost-dimension model (G0 joinability check, M020).</div>
+        </div>
+      </section>
+      <section class="block grid g-halves">
+        <div class="card">
+          <div class="card-top"><h3>Assets — Financial Position</h3><button class="src" data-entity="vw_finance"><i></i>Live · vw_finance</button></div>
+          <div class="sub">AED million · per-asset OPEX and CAPEX · tap a row to open the asset</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Asset</th><th>Tier</th><th>FY plan</th><th>YTD actual</th><th>Var</th><th>CAPEX drawn</th></tr></thead><tbody id="fin-asset-table"></tbody></table></div>
+        </div>
+        <div class="card" id="waterfall-card" data-static>
+          <div class="card-top"><h3>Variance Driver — SP11136</h3><span class="src static"><i></i>Static · GL drill-down next</span></div>
+          <div class="sub">YTD variance decomposition · AED million</div>
+          <div class="static-body"><div id="fin-waterfall"></div>
+            <div class="dd-note">Driver split is illustrative; a journal-level drill-down view would make it live.</div></div>
+          <div class="static-note">The driver analysis exists for CL01's SP11136 only.</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ ASSET MANAGEMENT ============ -->
+    <section id="view-assetmgmt" hidden>
+      <div class="hero" style="margin-bottom:18px"><div class="eyebrow">Asset Management</div><h2 style="font-size:32px">Asset lifecycle &amp; strategy</h2></div>
+      <div class="strip-head"><span class="lbl">Register summary</span><button class="src" data-entity="vw_asset_mgmt"><i></i>Live · vw_asset_mgmt</button></div>
+      <div class="kpis k4" id="am-kpis"></div>
+      <div data-static>
+        <div class="static-body">
+          <div class="subtabs">
+            <button class="subtab active" data-sub="life">Lifecycle Overview</button>
+            <button class="subtab" data-sub="strategy">Strategic Plan</button>
+            <span class="src static" style="align-self:center"><i></i>Static · M011 partial</span>
+          </div>
+          <div id="am-life">
+            <section class="block grid g-halves">
+              <div class="card"><h3>Top Asset Classes by Work-Order Frequency</h3><div class="sub">Rolling 12 months · portfolio</div><div id="am-freq"></div></div>
+              <div class="card"><h3>Asset Condition by Category</h3><div class="sub">Volume split — good / fair / poor</div><div class="tbl-wrap"><table class="kpit"><thead><tr><th>Category</th><th>Assets</th><th>Good</th><th>Fair</th><th>Poor</th></tr></thead><tbody id="am-cond"></tbody></table></div></div>
+            </section>
+            <section class="block"><div class="card"><h3>Asset Details</h3><div class="sub">Registered classes · units, PM regime, condition, remaining life, validation</div>
+              <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Asset class</th><th>Units</th><th>Major PM</th><th>Condition</th><th>Avg RUL</th><th>Last PM</th><th>Validated</th><th>Method</th></tr></thead><tbody id="am-detail"></tbody></table></div></div></section>
+          </div>
+          <div id="am-strategy" hidden>
+            <section class="block"><div class="card"><h3>Asset Strategy Portfolio</h3><div class="sub">Compiled lifecycle strategies · risk-ranked · tap a class for its strategy</div>
+              <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Asset category</th><th>Department</th><th>Risk</th><th>Condition</th><th>Remaining life</th><th>Open</th></tr></thead><tbody id="st-table"></tbody></table></div></div></section>
+            <section class="block grid g-halves">
+              <div class="card"><h3 id="st-dd-title">Strategy Drill-down</h3><div class="sub" id="st-dd-sub">Select a class above</div><div id="st-dd"></div></div>
+              <div class="card"><h3>Quarterly Action Plan</h3><div class="sub">Tap text to edit · tap status to cycle · held in this browser session only</div><div id="qa-list"></div></div>
+            </section>
+          </div>
+        </div>
+        <div class="static-note">Lifecycle strategies and condition-by-category tables exist for CL01 only. They come from condition surveys that are not on the contract yet (M011 weights pending sign-off).</div>
+      </div>
+    </section>
+
+    <!-- ============ PROCUREMENT ============ -->
+    <section id="view-procurement" hidden>
+      <div class="hero" style="margin-bottom:22px"><div class="eyebrow">Procurement</div><h2 style="font-size:32px">Tender pipeline — scope to stabilisation</h2></div>
+      <div class="strip-head"><span class="lbl">Pipeline summary</span><button class="src" data-entity="vw_procurement"><i></i>Live · vw_procurement</button></div>
+      <div class="kpis k4" id="pr-kpis"></div>
+      <section class="block">
+        <div class="card">
+          <div class="card-top"><h3>Tender Portfolio</h3><button class="src" data-entity="vw_tender"><i></i>Live · vw_tender</button></div>
+          <div class="sub">Live and recently completed tenders · tap a tender for its stage-gate history</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Asset / scope</th><th>Category</th><th>Bidders</th><th>Latest milestone</th><th>Gates</th><th>Status</th><th>Value</th><th>vs baseline</th></tr></thead><tbody id="pr-table"></tbody></table></div>
+        </div>
+      </section>
+      <section class="block grid g-halves">
+        <div class="card">
+          <div class="card-top"><h3 id="pr-dd-title">Stage-gate History</h3><button class="src" data-entity="vw_tender_gate"><i></i>Live</button></div>
+          <div class="sub" id="pr-dd-sub">Select a tender above</div>
+          <div class="tl" id="pr-tl"></div>
+        </div>
+        <div class="card" data-static>
+          <div class="card-top"><h3>Local Value &amp; Sustainable Sourcing</h3><span class="src static"><i></i>Static</span></div>
+          <div class="sub">In-country value delivered through the supply chain</div>
+          <div class="static-body">
+            <div class="stat-row"><span>Spend directed to Abu Dhabi suppliers</span><span class="v">76%</span></div>
+            <div class="stat-row"><span>New suppliers registered (2025)</span><span class="v">230 · 56% AD-based</span></div>
+            <div class="stat-row"><span>Standard procurement stage-gate</span><span class="v">13 milestones</span></div>
+            <div class="stat-row"><span>Approvals removed from the process</span><span class="v up">4 steps</span></div>
+            <div class="stat-row"><span>Supplier HSE pre-qualification</span><span class="v">Mandatory</span></div>
+          </div>
+          <div class="static-note">Supplier analytics are not on the contract yet.</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ PROJECTS ============ -->
+    <section id="view-projects" hidden>
+      <div class="hero" style="margin-bottom:22px"><div class="eyebrow">Projects &amp; On-Demand</div><h2 style="font-size:32px">Capital works and out-of-scope requests</h2></div>
+      <div class="strip-head"><span class="lbl">Works summary</span><button class="src" data-entity="vw_works"><i></i>Live · vw_works</button></div>
+      <div class="kpis k5" id="wk-kpis"></div>
+      <section class="block">
+        <div class="card">
+          <h3>Works Portfolio</h3>
+          <div class="sub">Projects follow the 8-stage capital gate · on-demand tracks a 4-stage flow</div>
+          <div class="filters">
+            <button class="fchip active" data-f="all">All</button>
+            <button class="fchip" data-f="Project">Projects</button>
+            <button class="fchip" data-f="On-Demand">On-Demand</button>
+          </div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Item</th><th>Type</th><th>Site</th><th>Current stage</th><th>Progress</th><th>Status</th><th>Value</th></tr></thead><tbody id="wk-table"></tbody></table></div>
+        </div>
+      </section>
+      <section class="block grid g-halves">
+        <div class="card"><h3 id="wk-dd-title">Stage Timeline</h3><div class="sub" id="wk-dd-sub">Select an item above</div><div class="tl" id="wk-tl"></div></div>
+        <div class="card">
+          <h3>Delivery Notes</h3>
+          <div class="sub">Governance applied to every work item</div>
+          <div class="stat-row"><span>Stage-gate — projects</span><span class="v">8 gates, client approvals at 2 &amp; 4</span></div>
+          <div class="stat-row"><span>Stage-gate — on-demand</span><span class="v">4 stages, 48h assignment SLA</span></div>
+          <div class="stat-row"><span>Source</span><span class="v">D365 Projects (M040/M041)</span></div>
+          <div class="stat-row"><span>Client visibility</span><span class="v">Live, filtered to the client</span></div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ DATA PIPELINE ============ -->
+    <section id="view-pipeline" hidden>
+      <div class="hero" style="margin-bottom:18px">
+        <div class="eyebrow">How the live numbers get here</div>
+        <h2 style="font-size:32px">Ground to glass, read-only</h2>
+        <p id="pipe-intro">—</p>
+      </div>
+      <div class="flow" id="flow">
+        <div class="fnode" id="fn-src"><div class="fn-k">Sources</div><div class="fn-t">MRI · D365 · IoT</div><div class="fn-s">Work orders, ledger, tenders, roster, telemetry</div><div class="fn-v" id="fv-src">—</div></div>
+        <div class="fnode" id="fn-ing"><div class="fn-k">Ingest</div><div class="fn-t" id="ft-ing">Fabric</div><div class="fn-s" id="fs-ing">Pipelines + eventstream → ingest.* procedures</div><div class="fn-v" id="fv-ing">—</div></div>
+        <div class="fnode" id="fn-sql"><div class="fn-k">Governed core</div><div class="fn-t" id="ft-sql">Azure SQL</div><div class="fn-s">16 contract views · row-level security on client_code</div><div class="fn-v" id="fv-sql">—</div></div>
+        <div class="fnode core" id="fn-dab"><div class="fn-k">API</div><div class="fn-t" id="ft-dab">Data API builder</div><div class="fn-s" id="fs-dab">One JSON config · REST + GraphQL · claims → SESSION_CONTEXT</div><div class="fn-v" id="fv-dab">—</div></div>
+        <div class="fnode" id="fn-gw"><div class="fn-k">Front door</div><div class="fn-t" id="ft-gw">API Management</div><div class="fn-s" id="fs-gw">Key per client · rate limit · cache · audit</div><div class="fn-v" id="fv-gw">—</div></div>
+        <div class="fnode" id="fn-portal"><div class="fn-k">Glass</div><div class="fn-t">This console</div><div class="fn-s">Polls the contract every 5 s</div><div class="fn-v" id="fv-portal">—</div></div>
+      </div>
+
+      <section class="block grid g-2" style="margin-top:24px">
+        <div class="card">
+          <div class="card-top"><h3>Live Source Events</h3><button class="src" data-entity="vw_activity"><i></i>Live · vw_activity</button></div>
+          <div class="sub">Each row is one change landed in silver by the ingestion identity</div>
+          <div id="feed"></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><h3>Data Health</h3><button class="src" data-entity="vw_data_health"><i></i>Live · M090</button></div>
+          <div class="sub">Freshness per source against its expected cadence</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Source</th><th>Feed</th><th>Last</th><th>Status</th></tr></thead><tbody id="health-table"></tbody></table></div>
+        </div>
+      </section>
+
+      <section class="block grid g-halves">
+        <div class="card">
+          <h3>Prove the Isolation</h3>
+          <div class="sub">Each button calls the API the way an attacker or a misconfigured client would. The database decides what comes back.</div>
+          <div class="test-btns">
+            <button class="btn" id="t-run">Run all checks</button>
+          </div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Check</th><th>Expected</th><th>Got</th><th></th></tr></thead><tbody id="test-table"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>Request Log</h3>
+          <div class="sub">Calls this console made, newest first</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>Time</th><th>Endpoint</th><th>Status</th><th>ms</th><th>Rows</th></tr></thead><tbody id="req-table"></tbody></table></div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ DEFINITIONS ============ -->
+    <section id="view-definitions" hidden>
+      <div class="hero" style="margin-bottom:22px">
+        <div class="eyebrow">Governance</div>
+        <h2 style="font-size:32px">Definitions &amp; method</h2>
+        <p>Every live figure on this console is one column of one contract view. This page is the single reference for how the numbers are made and where they come from.</p>
+      </div>
+      <section class="block grid g-halves">
+        <div class="card def-block">
+          <h3>Invisible Care Index — composition</h3>
+          <div class="formula">Index = 0.40 × Environmental + 0.30 × PPM compliance + 0.20 × Critical work orders + 0.10 × Asset condition</div>
+          <p>Environmental is the mean of IAQ, water quality, humidity and fire-system integrity, each averaged over the 15 minutes up to its latest reading. PPM compliance is rolling 90-day completion. The critical work-order score starts at 100 and loses 20 points per open P1/P2 per 1,000 tagged assets. Asset condition is the validated survey index. Weights live in a database table (core.index_weight), so changing them after sign-off (M011) is a data change, not a release.</p>
+          <h4>Score bands</h4>
+          <p><span class="score-pill sp-good">90–100</span> Nominal &nbsp; <span class="score-pill sp-warn">80–89</span> Watch &nbsp; <span class="score-pill sp-crit">&lt;80</span> Attention</p>
+        </div>
+        <div class="card def-block">
+          <h3>Sources &amp; refresh</h3>
+          <div class="stat-row"><span>MRI CAFM (work orders, PPM)</span><span class="v">Pipeline · near-live</span></div>
+          <div class="stat-row"><span>IoT environmental sensors</span><span class="v">Eventstream · 15 s windows</span></div>
+          <div class="stat-row"><span>D365 HR + time &amp; attendance</span><span class="v">Pipeline · near-live</span></div>
+          <div class="stat-row"><span>D365 F&amp;O (ledger, tenders)</span><span class="v">Daily · closed periods</span></div>
+          <div class="stat-row"><span>D365 Projects</span><span class="v">Daily</span></div>
+          <div class="stat-row"><span>Utility invoices</span><span class="v down">No digital source (gap)</span></div>
+          <div class="stat-row"><span>Console refresh</span><span class="v">Every 5 s (ledger every 60 s)</span></div>
+        </div>
+      </section>
+      <section class="block">
+        <div class="card def-block">
+          <div class="card-top"><h3>Data contract</h3><span class="mono" style="color:var(--mute)">GET /api/&lt;view&gt;</span></div>
+          <div class="sub">The 16 views <span data-stk="api">Data API builder</span> exposes. Nothing else in the database is reachable through the API.</div>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>View</th><th>Grain</th><th>Mapping</th><th>What it holds</th></tr></thead><tbody id="contract-table"></tbody></table></div>
+        </div>
+      </section>
+      <section class="block">
+        <div class="card def-block">
+          <h3>KPI dictionary</h3>
+          <div class="tbl-wrap"><table class="kpit"><thead><tr><th>KPI</th><th>Definition</th><th>View · column</th></tr></thead><tbody>
+            <tr><td>OPEX variance</td><td>(YTD actual − YTD plan) / YTD plan over the same closed periods</td><td class="mono">vw_finance.opex_var_pct</td></tr>
+            <tr><td>Annualised OPEX</td><td>YTD actual × 12 / closed months; a linear extrapolation stated as a forecast</td><td class="mono">vw_finance.opex_annualised_aed</td></tr>
+            <tr><td>SLA achievement</td><td>Reactive orders completed in the last 30 days that were responded to by their priority deadline</td><td class="mono">vw_service_delivery.sla_pct</td></tr>
+            <tr><td>PPM completion</td><td>Planned tasks completed ÷ planned tasks due, rolling 90 days, SFG20-aligned</td><td class="mono">vw_service_delivery.ppm_completion_pct</td></tr>
+            <tr><td>Planned share</td><td>PPM orders ÷ all orders raised, trailing 12 months</td><td class="mono">vw_service_delivery.planned_pct</td></tr>
+            <tr><td>MTTR</td><td>Mean hours from report to completion, reactive orders closed in 30 days</td><td class="mono">vw_service_delivery.mttr_hours</td></tr>
+            <tr><td>Reactive response</td><td>Mean minutes from report to first attendance, reactive orders closed in 30 days</td><td class="mono">vw_service_delivery.avg_response_min</td></tr>
+            <tr><td>Staff on site</td><td>Distinct staff clocked in and not out, within a 16-hour shift window</td><td class="mono">vw_hr.staff_on_site</td></tr>
+            <tr><td>Tender cycle time</td><td>Calendar days from scope approval to go-live, completed tenders only</td><td class="mono">vw_procurement.avg_cycle_days</td></tr>
+            <tr><td>Portfolio health</td><td>Simple mean of estate Invisible Care Indices</td><td class="mono">vw_portfolio_kpi.health_idx</td></tr>
+          </tbody></table></div>
+          <h4>Known limitations of this proof of concept</h4>
+          <p>Source systems are simulated: a simulator writes MRI, D365 and IoT changes through the same ingest procedures Fabric would call. All figures are synthetic, map positions are approximate and estates are identified by code only. STATIC panels are illustrative and carry the mapping item that would make them live. Quarterly action edits stay in this browser session.</p>
+        </div>
+      </section>
+    </section>
+  </div>
+</div>
+
+<!-- trace drawer -->
+<aside id="trace" aria-label="Request trace" aria-hidden="true">
+  <div class="tr-head"><div><div class="mini-label">Request trace</div><h3 id="tr-title">—</h3></div><button class="tr-close" id="tr-close" aria-label="Close trace">×</button></div>
+  <div class="tr-body" id="tr-body"></div>
+</aside>
+
+<footer class="page-foot">
+  <span>Portfolio Intelligence · <span data-stk="api">Data API builder</span> live-read proof of concept</span>
+  <span>Synthetic data · coded estates · rows filtered per client by the database</span>
+</footer>
+
+<script src="config.js"></script>
+<script src="js/emulator.js"></script>
+<script>
+"use strict";
+/* =============================================================================
+   Portfolio Intelligence console - POC wiring
+   Every LIVE panel reads a contract view: GET /api/<view>. In "live" mode the
+   calls go to the gateway in front of Data API builder; otherwise to the
+   in-browser emulator, which implements the same views and the same RLS rule.
+   ============================================================================= */
+const $ = (id) => document.getElementById(id);
+const CFG = Object.assign({ mode: null, base: '' }, window.CIP_CONFIG || {});
+const KEYS = { CL01: 'cl01-demo-7f3a9c', CL02: 'cl02-demo-41be07' };
+const DEMO_CLIENT = 'CL01';
+/* Which deployment this console is talking to. Same contract either way. */
+const STACK = {
+  dab: {
+    api: 'Data API builder', pill: 'DAB via gateway', rail: 'Live: Data API builder via gateway', object: 'contract',
+    ing: ['Simulator → ingest', 'Pipelines + eventstream → ingest.* procedures'], sql: 'Azure SQL',
+    dab: ['Data API builder', 'One JSON config · REST + GraphQL · claims → SESSION_CONTEXT'],
+    gw: ['Gateway (APIM stand-in)', 'Key per client · rate limit · cache · audit'],
+    intro: 'Live mode: this console calls the gateway, which maps your key to a client identity for Data API builder. DAB passes that identity to Azure SQL as session context, and row-level security returns only that client’s rows. A simulator stands in for Fabric and writes source events through the same ingest procedures.',
+  },
+  supabase: {
+    api: 'the Supabase Data API', pill: 'Supabase via Netlify', rail: 'Live: Supabase Data API via Netlify gateway', object: 'public',
+    ing: ['pg_cron simulator', 'Every 5 s → cip_ingest.* functions'], sql: 'Supabase Postgres',
+    dab: ['Supabase Data API', 'PostgREST · gateway secret checked in SQL · headers → RLS'],
+    gw: ['Netlify Function', 'Key per client · rate limit · read-only · audit'],
+    intro: 'Live mode on Netlify and Supabase: this console calls a Netlify Function that stands in for API Management. It maps your key to a client and calls Supabase’s Data API with that client and a gateway secret. Postgres verifies the secret, and row-level security returns only that client’s rows; a direct call without the secret gets nothing. A pg_cron job inside the database stands in for Fabric, writing source events through the same ingest functions every 5 seconds.',
+  },
+};
+const STK = STACK[CFG.stack] || STACK.dab;
+document.querySelectorAll('[data-stk="api"]').forEach((el) => { el.textContent = STK.api; });   // illustrative STATIC panels exist for this client only
+const state = {
+  mode: CFG.mode === 'live' ? 'live' : 'emulator', base: CFG.base || '',
+  client: 'CL01', data: {}, meta: {}, reqs: [], view: 'home', property: null,
+  selTender: null, selWork: null, selStrat: 0, wkFilter: 'all', lastEventId: 0,
+  lastOk: null, lastRoundMs: 0, err: null, prev: {},
+};
+try { const c = localStorage.getItem('cip.client'); if (c && KEYS[c]) state.client = c; } catch (e) { /* storage unavailable */ }
+
+/* ---------------------------------------------------------- formatting */
+const fmt = (n, d = 1) => (n == null || !isFinite(n) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const m = (aed, d = 1) => (aed == null ? '—' : fmt(aed / 1e6, d));
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const utc = (s) => (s ? new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z') : null);
+const gst = (d, withSec = true) => (d ? d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', second: withSec ? '2-digit' : undefined }) : '—');
+const gstDate = (d) => (d ? d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const healthColor = (h) => (h == null ? 'var(--sand)' : h >= 90 ? 'var(--good)' : h >= 80 ? 'var(--warn)' : 'var(--crit)');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const stClass = (s) => (s === 'Completed' ? 'st-done' : s === 'Overdue' ? 'st-overdue' : s === 'At Risk' ? 'st-risk' : 'st-ontrack');
+const ago = (min) => (min == null ? '—' : min < 1 ? 'now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ------------------------------------------------------------ API layer */
+let EMU_P = null;
+function emulator() {
+  return EMU_P || (EMU_P = (async () => {
+    const seed = window.CIP_SEED || (await (await fetch('data/seed.json')).json());
+    const emu = new window.CipEmulator.Emulator(seed);
+    emu.on(onSourceEvent);
+    setInterval(() => { if (!document.hidden) emu.step(); }, 3000);
+    return emu;
+  })());
+}
+async function call(entity, query = '', opts = {}) {
+  const path = '/api/' + entity + query;
+  const key = 'key' in opts ? opts.key : KEYS[state.client];
+  const headers = Object.assign({}, opts.headers || {});
+  if (key) headers['Ocp-Apim-Subscription-Key'] = key;
+  const method = opts.method || 'GET';
+  const t0 = performance.now();
+  let status = 0, body = null;
+  try {
+    if (state.mode === 'live') {
+      const res = await fetch(state.base.replace(/\/$/, '') + path, { method, headers, cache: 'no-store' });
+      status = res.status;
+      body = await res.json().catch(() => null);
+    } else {
+      const emu = await emulator();
+      await sleep(12 + Math.random() * 25);
+      const r = emu.request(method, path, headers);
+      status = r.status; body = r.body;
+    }
+  } catch (e) { status = 0; body = { message: e.message }; }
+  const rec = { t: new Date(), entity, path, method, status, ms: Math.round(performance.now() - t0), rows: body && Array.isArray(body.value) ? body.value.length : null, client: opts.label || state.client };
+  if (!opts.silent) { state.reqs.unshift(rec); state.reqs.length = Math.min(state.reqs.length, 40); }
+  return Object.assign(rec, { body });
+}
+const q = (o) => '?' + Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+const FAST = ['vw_portfolio_kpi', 'vw_service_delivery', 'vw_invisible_care', 'vw_hr', 'vw_exceptions', 'vw_activity', 'vw_data_health', 'vw_procurement', 'vw_tender'];
+const SLOW = ['vw_estate', 'vw_asset_mgmt', 'vw_finance', 'vw_finance_monthly', 'vw_finance_dimension', 'vw_tender_gate', 'vw_works'];
+const QUERY = { vw_activity: q({ $orderby: 'event_id desc', $first: 15 }), vw_tender_gate: q({ $first: 1000 }) };
+let lastSlow = 0, polling = false;
+
+async function refresh(full) {
+  if (polling) return;
+  polling = true;
+  const client = state.client;
+  const list = full || Date.now() - lastSlow > 60000 ? FAST.concat(SLOW) : FAST;
+  const t0 = performance.now();
+  const res = await Promise.all(list.map((e) => call(e, QUERY[e] || '')));
+  polling = false;
+  if (client !== state.client) return;              // switched mid-flight
+  const bad = res.find((r) => r.status !== 200);
+  if (bad) {
+    state.err = bad.status === 0 ? 'The API could not be reached. Showing the last good data; retrying every 5 s.'
+      : `The API answered ${bad.status} for ${bad.entity}: ${esc((bad.body && (bad.body.message || (bad.body.error && bad.body.error.message))) || 'no detail')}`;
+  } else state.err = null;
+  for (const r of res) {
+    if (r.status === 200) { state.data[r.entity] = r.body.value; state.meta[r.entity] = r; }
+  }
+  if (list.length > FAST.length && !bad) lastSlow = Date.now();
+  state.lastRoundMs = Math.round(performance.now() - t0);
+  if (!bad) state.lastOk = new Date();
+  derive();
+  render();
+}
+
+/* ------------------------------------------------- static (illustrative) */
+const STATIC_WATER = { SP11021: [620, .66], SP11047: [540, .64], SP11102: [265, .68], SP11136: [250, .62], SP11158: [235, .65], SP11203: [128, .72], SP11247: [105, .58], SP21014: [255, .63], SP31009: [96, .60], SP41012: [102, .61] };
+const EN_2025 = [100, 97, 104, 112, 126, 141, 152, 155, 146, 128, 110, 102];
+const EN_2026 = [94, 91, 97, 104, 117, 131, 141, null, null, null, null, null];
+const WATER_PROF = [.066, .064, .075, .083, .095, .104, .110, .108, .096, .078, .064, .057];
+const SPARES = [['HVAC', 5.2], ['Mechanical', 4.9], ['Electrical', 3.6], ['FLS', 2.1], ['Plumbing', 1.6], ['Special systems', 1.2]];
+const SERVICES = [['MEP & Hard Services', 'Wasael direct', 99.4, 96], ['Soft Services & Housekeeping', 'Wasael direct', 99.1, 95], ['Landscaping & External', 'Subcontractor', 98.2, 91], ['Specialist Systems (ELV/BMS)', 'Subcontractor', 97.8, 89], ['Water Features & Pools', 'Subcontractor', 98.9, 93], ['Waste & Environmental', 'Subcontractor', 99.0, 92], ['Pest Control & Hygiene', 'Subcontractor', 99.5, 94]];
+const COMP = [['Civil Defence certificate', 'Current'], ['Lift inspections', 'Current'], ['Water quality sampling', 'Current'], ['HSE statutory training', 'Current'], ['Permit-to-work regime', 'Active'], ['Insurance & warranties register', 'Maintained']];
+const AM_FREQ = [['AHUs & FAHUs', 3120], ['Water features & fountains', 1840], ['Irrigation systems', 1610], ['Kitchen & F&B equipment', 1450], ['Elevators & escalators', 980], ['Chillers', 760], ['Fire alarm devices', 590], ['UPS systems', 410]];
+const AM_COND = [['Mechanical', 9840, 62, 31, 7], ['Electrical', 14260, 66, 28, 6], ['HVAC', 11830, 55, 34, 11], ['Plumbing', 8940, 64, 30, 6], ['FLS', 12410, 71, 25, 4], ['Special systems', 7560, 58, 32, 10]];
+const AM_DETAIL = [['Chillers', 38, 'Quarterly', 74, '9 of 20 yrs', 'Jun 2026', 'Yes', 'Condition survey Q2-26'], ['Cooling towers', 22, 'Quarterly', 58, '6 of 15 yrs', 'Jun 2026', 'Yes', 'Condition survey Q2-26'], ['AHUs & FAHUs', 412, 'Monthly', 78, '11 of 20 yrs', 'Jul 2026', 'Yes', 'CAFM PPM records'], ['Elevators & escalators', 64, 'Monthly', 71, '12 of 25 yrs', 'Jul 2026', 'Yes', 'OEM AMC reports'], ['Generators', 28, 'Monthly', 82, '14 of 25 yrs', 'Jun 2026', 'Yes', 'Load-bank test'], ['Fire alarm systems', 8940, 'Quarterly', 76, '8 of 15 yrs', 'Jul 2026', 'Yes', 'Third-party inspection'], ['Fire fighting & pumps', 96, 'Quarterly', 69, '7 of 15 yrs', 'Jun 2026', 'Yes', 'Third-party inspection'], ['BMS', 10, 'Annual major', 66, '6 of 12 yrs', 'May 2026', 'Yes', 'Points audit 2026'], ['UPS systems', 46, 'Quarterly', 52, '2 of 10 yrs', 'Jul 2026', 'Yes', 'Battery impedance test'], ['Water features & fountains', 74, 'Monthly', 73, '9 of 18 yrs', 'Jul 2026', 'Yes', 'Condition survey Q2-26'], ['Irrigation systems', 190, 'Monthly', 77, '7 of 12 yrs', 'Jul 2026', 'Partial', 'Zone audit in progress'], ['Kitchen & F&B equipment', 620, 'Quarterly', 75, '6 of 12 yrs', 'Jun 2026', 'Yes', 'OEM service records']];
+const STRAT = [
+  { c: 'UPS (uninterrupted power supply)', d: 'Electrical', r: 'Critical', cond: 52, life: '2 yrs of 10', open: 2, dd: { vol: '46 units across 10 assets protecting VIP power continuity, security systems and data rooms. Battery strings average 7.8 years of a 10-year design life.', risks: 'Single-string designs at 3 assets create no-redundancy points for principal areas · replacement lead time 14 weeks · thermal stress in two rooftop plant rooms.', plan: 'REPLACE — phased battery-string renewal across FY26–27, critical assets first. MONITOR — impedance trend alerts to CAFM. DESIGN — N+1 modular standard for T1 assets.', imp: 'Removes single-point failures for VIP areas · AED 2.8m programme over 2 years · resets the 10-year clock.' } },
+  { c: 'Cooling towers', d: 'Hard FM — HVAC', r: 'Critical', cond: 58, life: 'Expired (TL 15 yrs)', open: 1, dd: { vol: '22 cells at 6 assets; 9 cells beyond design life. Drift eliminators and fill degraded at the two oldest banks.', risks: 'Beyond-life cells risk unplanned outage in peak season · statutory water-safety exposure if fill degradation accelerates.', plan: 'REPLACE — 9 cells FY27 CAPEX (submitted) · BRIDGE — enhanced quarterly inspection until renewal.', imp: 'Removes peak-season failure exposure · −30% water at affected plants · AED 4.1m FY27.' } },
+  { c: 'Chillers', d: 'Hard FM — HVAC', r: 'High', cond: 74, life: '9 yrs of 20', open: 1, dd: { vol: '38 machines; SP11136 bank replaced 2026 (unplanned, driving its OPEX variance). 6 legacy units on phase-down refrigerants.', risks: 'Refrigerant phase-down exposes 6 units to rising gas cost and availability risk.', plan: 'UPGRADE — replace 6 legacy units over FY27–29 · OPTIMISE — chiller sequencing via BMS.', imp: '−4% plant energy · ahead of refrigerant regulation · AED 7.6m programme.' } },
+  { c: 'Elevators & escalators', d: 'Hard FM', r: 'High', cond: 71, life: '12 yrs of 25', open: 2, dd: { vol: '64 units portfolio-wide; 6 legacy units from a discontinued vendor line with no open-market spares.', risks: 'Legacy units create entrapment risk if drive parts fail · 3 garden elevators weather-exposed.', plan: 'UPGRADE — modernise 6 legacy drives FY27 · SOURCE — pre-purchase critical spares · CONTRACT — 24/7 AMC consolidation.', imp: 'Closes entrapment risk · −40% forecast downtime · AED 3.2m over 2 years.' } },
+  { c: 'BMS', d: 'Special systems', r: 'High', cond: 66, life: '6 yrs of 12', open: 1, dd: { vol: '10 head-ends, ~46,000 points. Points audit 2026 found 5.2% unmapped or stale.', risks: 'Obsolete controllers limit analytics integration · single head-end at 3 assets.', plan: 'MODERNISE — 2 head-ends FY27 · CLEANSE — points remediation to <1% · INTEGRATE — analytics gateway.', imp: 'Foundation for the predictive phase · AED 2.4m.' } },
+  { c: 'Water features & fountains', d: 'Civil / special', r: 'Medium', cond: 73, life: '9 yrs of 18', open: 0, dd: { vol: '74 features; pump and filtration plant in fair-good condition.', risks: 'Scale accumulation at hard-water assets shortens pump life.', plan: 'RETROFIT — VFDs at 18 largest features · TREAT — enhanced softening at 3 assets.', imp: '−15% energy on feature plant.' } },
+];
+const QA_DEFAULT = [['Source pre-purchase of legacy elevator drive spares', 'Q4 26', 'In Progress'], ['Submit cooling tower replacement CAPEX for client approval', 'Q4 26', 'In Progress'], ['Complete UPS battery impedance baseline across T1 assets', 'Q4 26', 'Planned'], ['BMS points remediation — first 2 assets', 'Q1 27', 'Planned']];
+const PROJ_ST = ['Scope Defined', 'Scope Approved by Client', 'Commercial Proposal Submitted', 'Commercial Approved by Client', 'Mobilisation', 'Works in Progress', 'QA & Snagging', 'Completed'];
+const OD_ST = ['Reported', 'Assigned', 'In Progress', 'Completed'];
+const GATES = ['Scope of Work', 'Bidders Identified', 'Client Pre-Approval', 'Tender Launched', 'Site Visits', 'Technical Evaluation', 'Commercial Evaluation', 'Internal Approval', 'Client Approval', 'Award Recommendation', 'Letter of Award', 'Contract Finalised', 'Go-Live / Stabilised'];
+const CONTRACT = {
+  vw_estate: ['Estate', '—', 'Coded estate master: region, tier, map position'],
+  vw_service_delivery: ['Estate', 'M001–M003', 'Open orders, SLA, response, MTTR, PPM completion, planned share'],
+  vw_invisible_care: ['Estate', 'M070–M071, M011', 'Environmental indices, alerts, Invisible Care Index'],
+  vw_asset_mgmt: ['Estate', 'M010–M012', 'Tagged assets, condition, assets beyond life'],
+  vw_finance: ['Estate', 'M020–M022', 'OPEX plan/actual/variance, annualised, CAPEX drawdown'],
+  vw_finance_monthly: ['Client × month', 'M020', 'Portfolio OPEX plan and actual by month'],
+  vw_finance_dimension: ['Client × dimension', 'M020', 'YTD OPEX by ERP cost dimension'],
+  vw_hr: ['Estate', 'M060–M061', 'Staff on site by category, deployment vs roster'],
+  vw_procurement: ['Client', 'M030–M032', 'Pipeline value, gates live, cycle time, awards'],
+  vw_tender: ['Tender', 'M030–M031', 'Tender register with stage-gate position'],
+  vw_tender_gate: ['Tender × gate', 'M031', 'Stage-gate history'],
+  vw_works: ['Work item', 'M040–M041', 'Projects and on-demand works by stage'],
+  vw_exceptions: ['Exception', '—', 'Threshold breaches with the logged action'],
+  vw_activity: ['Event', 'M090', 'Ingestion log of source events'],
+  vw_data_health: ['Client × source', 'M090', 'Freshness and status per source'],
+  vw_portfolio_kpi: ['Client', 'M001, M020, M060', 'Portfolio headline at client grain'],
+};
+const SRC_COLOR = { 'MRI CAFM': 'var(--taupe)', 'IoT / Event Hub': 'var(--water)', 'D365 HR + T&A': 'var(--house)', 'D365 F&O': 'var(--ink2)', 'D365 Projects': 'var(--sand)' };
+
+/* ---------------------------------------------------------------- derive */
+let P = [], K = null;
+function derive() {
+  const d = state.data;
+  const by = (name) => new Map((d[name] || []).map((r) => [r.estate_code, r]));
+  const sd = by('vw_service_delivery'), ic = by('vw_invisible_care'), fi = by('vw_finance'), hr = by('vw_hr'), am = by('vw_asset_mgmt');
+  P = (d.vw_estate || []).map((e) => {
+    const s = sd.get(e.estate_code) || {}, i = ic.get(e.estate_code) || {}, f = fi.get(e.estate_code) || {}, h = hr.get(e.estate_code) || {}, a = am.get(e.estate_code) || {};
+    return {
+      code: e.estate_code, emirate: e.emirate, region: e.region, tier: e.tier, tierName: e.tier_name, x: e.map_x, y: e.map_y, lab: e.label_pos,
+      status: e.status_label, cls: e.class_label, since: e.managed_since,
+      wo: s.open_orders, backlog: s.backlog_30d, p1p2: s.open_p1p2, sla: s.sla_pct, resp: s.avg_response_min, mttr: s.mttr_hours, ppm: s.ppm_completion_pct, planned: s.planned_pct,
+      health: i.health_idx, band: i.health_band, env: { iaq: i.iaq, water: i.water_quality, humid: i.humidity, fire: i.fire_integrity }, envScore: i.env_score, temp: i.avg_temp_c,
+      sensors: i.sensors_reporting, alerts: i.env_alerts_open, fresh: i.freshness_min, crit: i.critical_wo_score,
+      fyPlan: f.opex_fy_plan_aed, ytdPlan: f.opex_ytd_plan_aed, ytdAct: f.opex_ytd_actual_aed, var: f.opex_var_pct, annual: f.opex_annualised_aed,
+      capex: f.capex_fy_aed, drawn: f.capex_drawn_aed, drawPct: f.capex_drawn_pct, lastPeriod: f.last_closed_period,
+      staff: h.staff_on_site, mix: [['Technical', h.technical], ['Soft services', h.soft_services], ['Professional', h.professional], ['Admin', h.admin]], plan: h.planned_headcount, deploy: h.deployment_vs_plan_pct,
+      assets: a.asset_count, cond: a.condition_idx, goodFair: a.good_fair_pct, critMon: a.critical_monitored, beyond: a.assets_beyond_life,
+      water: STATIC_WATER[e.estate_code],
+    };
+  });
+  K = (d.vw_portfolio_kpi || [])[0] || null;
+}
+
+/* ------------------------------------------------------------ rendering */
+function setHTML(id, html) { const el = $(id); if (el && el.innerHTML !== html) el.innerHTML = html; }
+function periodLabel(p) { if (!p) return '—'; const mo = p % 100, y = Math.floor(p / 100); return `Jan–${MONTHS[mo - 1]} ${y}`; }
+
+function render() {
+  document.body.classList.toggle('not-demo', state.client !== DEMO_CLIENT);
+  renderHeader();
+  renderRail();
+  if (state.view === 'home') renderHome();
+  if (state.view === 'property') renderProperty();
+  if (state.view === 'finance') renderFinance();
+  if (state.view === 'assetmgmt') renderAM();
+  if (state.view === 'procurement') renderProc();
+  if (state.view === 'projects') renderWorks();
+  if (state.view === 'pipeline') renderPipeline();
+  if (state.view === 'definitions') renderDefinitions();
+  if ($('trace').classList.contains('open')) renderTrace();
+}
+
+function renderHeader() {
+  const live = state.mode === 'live';
+  $('src-label').innerHTML = live ? `Live<span class="sl-x"> · ${esc(STK.pill)}</span>` : 'Emulated<span class="sl-x"> · in browser</span>';
+  $('src-dot').className = 'live-dot' + (state.err ? ' off' : '');
+  $('rail-dot').className = 'live-dot' + (state.err ? ' off' : '');
+  $('rail-src').textContent = live ? STK.rail : 'Emulated pipeline (same contract, same RLS)';
+  $('clock').textContent = state.lastOk ? gst(state.lastOk) + ' GST' : '—';
+  $('stamp-sub').textContent = state.lastOk ? `${Object.keys(state.meta).length} endpoints · ${state.lastRoundMs} ms` : 'connecting';
+  const eb = $('errbar'); eb.classList.toggle('on', !!state.err); eb.innerHTML = state.err ? esc(state.err) : '';
+  if ($('client-sel').value !== state.client) $('client-sel').value = state.client;
+}
+
+function renderRail() {
+  const groups = {};
+  P.forEach((p) => { (groups[p.region] = groups[p.region] || []).push(p); });
+  const order = ['Abu Dhabi', 'Northern Emirates'];
+  const html = order.filter((r) => groups[r]).map((r) => `<div class="rail-group"><div class="rail-label">${esc(r)} — ${groups[r].length} asset${groups[r].length > 1 ? 's' : ''}</div>` +
+    groups[r].map((p) => `<button class="rail-item${state.view === 'property' && state.property === p.code ? ' active' : ''}" data-code="${esc(p.code)}"><span class="dot" style="background:${healthColor(p.health)}"></span><span class="code">${esc(p.code)}</span><span class="tier">T${p.tier}</span></button>`).join('') + '</div>').join('');
+  setHTML('rail-groups', html);
+  $('nav-overview').classList.toggle('active', state.view === 'home');
+}
+
+/* ---------- home ---------- */
+const numWord = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
+function renderHome() {
+  const n = P.length;
+  $('hero-n').textContent = `${numWord[n] || n} asset${n === 1 ? '' : 's'}`;
+  const regions = {}; P.forEach((p) => { regions[p.region] = (regions[p.region] || 0) + 1; });
+  $('map-sub').textContent = `${n} assets under integrated management · ` + Object.entries(regions).map(([r, c]) => `${c} ${r}`).join(' · ');
+  renderKpis(); renderAttention(); renderPins(); renderLeaderboard(); renderOpexChart('opex-chart', false);
+  renderCostDim(); renderSvc(); renderPeople(); renderPipes();
+  if (state.client === DEMO_CLIENT) { renderEnergy(); renderWater(); hbars('spares', SPARES, ' m', 'var(--water)'); }
+}
+function renderKpis() {
+  if (!K) return;
+  $('kpi-period').textContent = periodLabel(K.last_closed_period) + ' actuals';
+  const v = K.opex_var_pct;
+  const cells = [
+    ['opex', 'OPEX YTD · Actual', `${m(K.opex_ytd_actual_aed)}<small> AED m</small>`, `vs plan ${m(K.opex_ytd_plan_aed)} · <b class="${v > 2 ? 'amber' : 'up'}">${v >= 0 ? '+' : ''}${fmt(v)}%</b>`],
+    ['ann', 'Annualised OPEX', `${m(K.opex_annualised_aed, 0)}<small> AED m</small>`, `FY plan ${m(K.opex_fy_plan_aed, 0)} AED m`],
+    ['staff', 'Personnel on site', `${(K.staff_on_site || 0).toLocaleString()}`, `across ${K.estates} assets · ${fmt(K.planned_headcount ? (100 * K.staff_on_site) / K.planned_headcount : null)}% of roster`],
+    ['ppm', 'PPM Completion', `${fmt(K.ppm_completion_pct)}<small>%</small>`, 'SFG20 regime · rolling 90 days'],
+    ['health', 'Portfolio Health', `<span style="color:${healthColor(K.health_idx)}">${K.health_idx ?? '—'}</span><small>/100</small>`, 'Invisible Care Index · mean of estates'],
+    ['wo', 'Open Work Orders', `${K.open_orders}`, `${K.backlog_30d} aged &gt; 30 days · ${K.open_p1p2} P1/P2`],
+  ];
+  const strip = $('kpi-strip');
+  if (strip.children.length !== cells.length) strip.innerHTML = cells.map(([k]) => `<div class="kpi" id="kpi-${k}"><div class="tick"></div><div class="k-label"></div><div class="k-val"></div><div class="k-sub"></div></div>`).join('');
+  cells.forEach(([k, label, val, sub]) => {
+    const el = $('kpi-' + k);
+    el.querySelector('.k-label').textContent = label;
+    if (el.querySelector('.k-val').innerHTML !== val) el.querySelector('.k-val').innerHTML = val;
+    el.querySelector('.k-sub').innerHTML = sub;
+    const tick = el.querySelector('.tick');
+    if (state.prev['kpi-' + k] !== undefined && state.prev['kpi-' + k] !== val) { tick.classList.add('on'); setTimeout(() => tick.classList.remove('on'), 900); }
+    state.prev['kpi-' + k] = val;
+  });
+}
+function renderAttention() {
+  if (!state.data.vw_exceptions) { setHTML('attn-list', '<div class="mv-row"><span>Loading…</span></div>'); return; }
+  const rows = (state.data.vw_exceptions || []).slice().sort((a, b) => (a.severity === b.severity ? a.exception_key.localeCompare(b.exception_key) : a.severity === 'critical' ? -1 : 1));
+  setHTML('attn-list', rows.length ? rows.map((x) => `<div class="attn-row"><span class="a-code" style="color:${x.severity === 'critical' ? 'var(--crit)' : 'var(--warn)'}">${esc(x.estate_code)}</span>
+    <span class="a-cause">${esc(x.cause)}</span>
+    <span class="a-act"><b>Action · ${esc(x.owner_team)}</b><span class="${x.owner_team === 'Unassigned' ? 'unassigned' : ''}">${esc(x.action_text)}</span></span></div>`).join('')
+    : '<div class="mv-row"><span>No thresholds breached right now.</span></div>');
+}
+function renderPins() {
+  const off = { l: [-11, 4, 'end'], r: [11, 4, 'start'], b: [0, 18, 'middle'], t: [0, -11, 'middle'], br: [9, 15, 'start'], bl: [-9, 15, 'end'], tr: [9, -8, 'start'], tl: [-9, -8, 'end'] };
+  setHTML('pins', P.map((p, i) => {
+    const [dx, dy, anch] = off[p.lab] || off.r;
+    return `<g class="pin t${p.tier}" data-code="${esc(p.code)}"><circle class="halo" cx="${p.x}" cy="${p.y}" r="6" style="animation-delay:${i * 0.35}s"/>
+      <circle class="core" cx="${p.x}" cy="${p.y}" r="${p.tier === 1 ? 7 : p.tier === 2 ? 5.6 : 4.6}"/>
+      <text x="${p.x + dx}" y="${p.y + dy}" text-anchor="${anch}">${esc(p.code)}</text></g>`;
+  }).join(''));
+}
+function renderLeaderboard() {
+  const sorted = P.slice().sort((a, b) => (b.health ?? -1) - (a.health ?? -1));
+  setHTML('leaderboard', sorted.map((p, i) => `<div class="lb-row" data-code="${esc(p.code)}"><span class="lb-rank">${String(i + 1).padStart(2, '0')}</span><span class="lb-code">${esc(p.code)}</span><span class="lb-em">${esc(p.emirate)}</span>
+    <span class="lb-bar"><i style="width:${p.health || 0}%;background:${healthColor(p.health)}"></i></span><span class="lb-score" style="color:${healthColor(p.health)}">${p.health ?? '—'}</span></div>`).join(''));
+}
+function renderOpexChart(id, values) {
+  const rows = (state.data.vw_finance_monthly || []).slice().sort((a, b) => a.period - b.period);
+  if (!rows.length) return;
+  const W = 560, H = values ? 270 : 240, pad = { l: 34, r: 8, t: 14, b: values ? 56 : 26 };
+  const top = Math.max(...rows.map((r) => Math.max(r.opex_plan_aed, r.opex_actual_aed || 0))) / 1e6;
+  const step = top > 40 ? 10 : top > 12 ? 6 : top > 6 ? 2 : 1;
+  const max = Math.ceil((top * 1.08) / step) * step;
+  const bw = (W - pad.l - pad.r) / 12, ih = H - pad.t - pad.b;
+  let s = '';
+  for (let g = 0; g <= 4; g++) { const y = pad.t + (ih * g) / 4, v = max - (max * g) / 4; s += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" class="c-grid"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" class="c-axis">${fmt(v, v % 1 ? 1 : 0)}</text>`; }
+  rows.forEach((r) => {
+    const i = (r.period % 100) - 1, x = pad.l + i * bw, pv = r.opex_plan_aed / 1e6, h = (ih * pv) / max;
+    s += `<rect x="${x + 4}" y="${H - pad.b - h}" width="${bw - 8}" height="${h}" class="c-plan"/>`;
+    if (r.opex_actual_aed != null) { const av = r.opex_actual_aed / 1e6, ha = (ih * av) / max; s += `<rect x="${x + 4}" y="${H - pad.b - ha}" width="${bw - 8}" height="${ha}" class="c-act"/>`; if (values) s += `<text x="${x + bw / 2}" y="${H - 40}" text-anchor="middle" class="c-act-val">${av.toFixed(1)}</text>`; }
+    if (values) s += `<text x="${x + bw / 2}" y="${H - 28}" text-anchor="middle" class="c-plan-val">${pv.toFixed(1)}</text>`;
+    s += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" class="c-axis">${MONTHS[i][0]}</text>`;
+  });
+  if (values) s += `<text x="${pad.l - 4}" y="${H - 40}" text-anchor="end" class="c-act-val">Act</text><text x="${pad.l - 4}" y="${H - 28}" text-anchor="end" class="c-plan-val">Pln</text>`;
+  setHTML(id, s);
+  const last = rows.filter((r) => r.opex_actual_aed != null).pop();
+  if ($('opex-sub') && last) $('opex-sub').textContent = `AED million · monthly · actuals through ${MONTHS[(last.period % 100) - 1]} ${Math.floor(last.period / 100)} · plan thereafter`;
+}
+function lineChart(id, a25, a26, min, max, c26) {
+  const W = 560, H = 240, pad = { l: 38, r: 10, t: 14, b: 26 };
+  const X = (i) => pad.l + ((W - pad.l - pad.r) * i) / 11, Y = (v) => pad.t + (H - pad.t - pad.b) * (1 - (v - min) / (max - min));
+  let s = '';
+  for (let g = 0; g <= 3; g++) { const y = pad.t + ((H - pad.t - pad.b) * g) / 3, v = Math.round(max - ((max - min) * g) / 3); s += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" class="c-grid"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" class="c-axis">${v}</text>`; }
+  const path = (arr, color, w) => { let d = '', st = false; arr.forEach((v, i) => { if (v == null) return; d += (st ? 'L' : 'M') + X(i) + ',' + Y(v); st = true; }); return `<path d="${d}" fill="none" style="stroke:${color}" stroke-width="${w}"/>`; };
+  s += path(a25, 'var(--sand)', 2) + path(a26, c26, 2.5);
+  a26.forEach((v, i) => { if (v != null) s += `<circle cx="${X(i)}" cy="${Y(v)}" r="3" style="fill:${c26}"/>`; });
+  MONTHS.forEach((mo, i) => { s += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="c-axis">${mo[0]}</text>`; });
+  setHTML(id, s);
+}
+function renderEnergy() { lineChart('energy-chart', EN_2025, EN_2026, 80, 165, 'var(--taupe)'); }
+function renderWater() {
+  const est = P.filter((p) => p.water);
+  const annual = est.reduce((a, p) => a + p.water[0], 0); if (!annual) return;
+  const landShare = est.reduce((a, p) => a + p.water[0] * p.water[1], 0) / annual;
+  const W = 560, H = 240, pad = { l: 36, r: 8, t: 12, b: 24 };
+  const land = [], house = [];
+  WATER_PROF.forEach((f, i) => { if (i < 7) { const mm = annual * f * 0.985; land.push(mm * landShare); house.push(mm * (1 - landShare)); } else { land.push(null); house.push(null); } });
+  const max = Math.ceil(Math.max(...land.filter((v) => v != null).map((v, i) => v + house[i])) * 1.15);
+  const bw = (W - pad.l - pad.r) / 12, ih = H - pad.t - pad.b;
+  let s = '';
+  for (let g = 0; g <= 3; g++) { const y = pad.t + (ih * g) / 3, v = Math.round(max - (max * g) / 3); s += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" class="c-grid"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" class="c-axis">${v}</text>`; }
+  land.forEach((v, i) => {
+    const x = pad.l + i * bw;
+    if (v != null) { const hl = (ih * v) / max, hh = (ih * house[i]) / max; s += `<rect x="${x + 4}" y="${H - pad.b - hl}" width="${bw - 8}" height="${hl}" style="fill:var(--water)"/><rect x="${x + 4}" y="${H - pad.b - hl - hh}" width="${bw - 8}" height="${hh}" style="fill:var(--house)"/>`; }
+    else { const pv = (ih * (land[6] + house[6]) * WATER_PROF[i]) / WATER_PROF[6] / max; s += `<rect x="${x + 4}" y="${H - pad.b - pv}" width="${bw - 8}" height="${pv}" class="c-ghost"/>`; }
+    s += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" class="c-axis">${MONTHS[i][0]}</text>`;
+  });
+  setHTML('water-chart', s);
+}
+function hbars(id, rows, unit, color) {
+  const max = Math.max(...rows.map((r) => Math.abs(r[1])), 1);
+  setHTML(id, rows.map(([n, v]) => `<div class="hb-row"><div class="hb-top"><span>${esc(n)}</span><span class="v">${typeof v === 'number' ? v.toLocaleString() : v}${unit || ''}</span></div><div class="hb-track"><i style="width:${(Math.abs(v) / max) * 100}%;background:${color}"></i></div></div>`).join(''));
+}
+const DIM_ORDER = ['Manpower', 'Materials', 'Subcontracts', 'Utilities', 'Overheads'];
+function dims() { return (state.data.vw_finance_dimension || []).slice().sort((a, b) => DIM_ORDER.indexOf(a.cost_dimension) - DIM_ORDER.indexOf(b.cost_dimension)); }
+function renderCostDim() {
+  setHTML('costdim', dims().map((r) => `<div class="stat-row"><span>${esc(r.cost_dimension)}</span><span class="v">${m(r.opex_ytd_actual_aed)} <small style="color:var(--mute);font-weight:400">/ ${m(r.opex_ytd_plan_aed)}</small> <span class="${r.var_pct > 2 ? 'amber' : r.var_pct > 0 ? '' : 'up'}">${r.var_pct >= 0 ? '+' : ''}${fmt(r.var_pct)}%</span></span></div>`).join(''));
+}
+function renderSvc() {
+  if (!K) return;
+  const p = K.planned_pct;
+  setHTML('svc-card', `
+    <div class="stat-row"><span>SLA achievement (target 99%)</span><span class="v ${K.sla_pct >= 99 ? 'up' : 'amber'}">${fmt(K.sla_pct)}%</span></div>
+    <div class="stat-row"><span>PPM completion (rolling 90d)</span><span class="v">${fmt(K.ppm_completion_pct)}%</span></div>
+    <div class="stat-row"><span>Planned : reactive (12m)</span><span class="v">${p == null ? '—' : Math.round(p) + ' : ' + (100 - Math.round(p))}</span></div>
+    <div class="stat-row"><span>Open work orders</span><span class="v">${K.open_orders}</span></div>
+    <div class="stat-row"><span>Open P1 / P2</span><span class="v">${K.open_p1p2}</span></div>
+    <div class="stat-row"><span>Backlog older than 30 days</span><span class="v">${K.backlog_30d}</span></div>`);
+}
+function renderPeople() {
+  const t = { Technical: 0, 'Soft services': 0, Professional: 0, Admin: 0 };
+  P.forEach((p) => p.mix.forEach(([c, v]) => { t[c] += v || 0; }));
+  const total = Object.values(t).reduce((a, b) => a + b, 0), plan = P.reduce((a, p) => a + (p.plan || 0), 0);
+  setHTML('people-card', `<div class="mini-label">On site now</div><div class="big">${total.toLocaleString()} <small>of ${plan.toLocaleString()} rostered</small></div><div style="height:10px"></div>` +
+    Object.entries(t).map(([c, v]) => `<div class="hb-row"><div class="hb-top"><span>${c}</span><span class="v">${v.toLocaleString()}</span></div><div class="hb-track"><i style="width:${total ? (v / total) * 100 : 0}%;background:var(--ink2)"></i></div></div>`).join(''));
+}
+function renderPipes() {
+  const pr = {}; (state.data.vw_tender || []).forEach((t) => { const k = t.status === 'Completed' ? 'Stabilised (completed)' : t.last_milestone; pr[k] = (pr[k] || 0) + 1; });
+  setHTML('proc-pipe', Object.entries(pr).map(([k, v]) => `<div class="stat-row"><span>${esc(k)}</span><span class="v">${v}</span></div>`).join('') || '<div class="stat-row"><span>No tenders</span></div>');
+  const pj = {}; (state.data.vw_works || []).forEach((w) => { pj[w.current_stage] = (pj[w.current_stage] || 0) + 1; });
+  setHTML('proj-pipe', Object.entries(pj).map(([k, v]) => `<div class="stat-row"><span>${esc(k)}</span><span class="v">${v}</span></div>`).join('') || '<div class="stat-row"><span>No works</span></div>');
+}
+
+/* ---------- property ---------- */
+function envColorClass(v) { return v == null ? 'z-watch' : v >= 92 ? 'z-nom' : v >= 85 ? 'z-watch' : 'z-att'; }
+function renderProperty() {
+  const p = P.find((x) => x.code === state.property);
+  if (!p) { showTab('home'); return; }
+  $('crumb').textContent = 'Asset Console'; $('page-title').textContent = p.code;
+  $('p-code').textContent = p.code;
+  setHTML('p-meta', [p.emirate, p.tierName, 'Tier ' + p.tier, 'Managed since ' + p.since, p.status, p.cls].map((t) => `<span class="tag">${esc(t)}</span>`).join(''));
+  $('p-ring').style.strokeDashoffset = 289 * (1 - (p.health || 0) / 100); $('p-ring').style.stroke = healthColor(p.health);
+  $('p-ring-val').textContent = p.health ?? '—';
+  const zones = [['Main Residence', 40, 40, 220, 130, p.env.iaq], ['Majlis & Reception', 280, 40, 150, 80, p.env.humid], ['Guest Villas', 450, 40, 150, 80, p.env.iaq], ['Service & BOH', 280, 140, 150, 110, p.env.water], ['Energy Centre', 450, 140, 150, 60, p.env.fire], ['Landscape & Water Features', 40, 190, 220, 70, p.env.water], ['Mobility & Fleet', 450, 216, 150, 44, p.envScore]];
+  setHTML('planview', zones.map(([n, x, y, w, h, v]) => `<g class="zone"><rect x="${x}" y="${y}" width="${w}" height="${h}" class="${envColorClass(v)}"/><text x="${x + 10}" y="${y + 20}" class="zn">${n}</text><text x="${x + 10}" y="${y + 36}" class="zv">${v == null ? '—' : Math.round(v)}/100</text></g>`).join('') +
+    `<text x="40" y="288" class="sea-label" style="font-size:10px">Schematic representation — illustrative layout only</text>`);
+  const ev = [['Indoor air quality', p.env.iaq], ['Water quality', p.env.water], ['Moisture & humidity', p.env.humid], ['Fire systems integrity', p.env.fire]];
+  setHTML('env-list', ev.map(([n, v]) => `<div class="stat-row"><span>${n}</span><span class="v" style="color:${v >= 92 ? 'var(--good)' : v >= 85 ? 'var(--warn)' : 'var(--crit)'}">${fmt(v)}/100</span></div>`).join('') +
+    `<div class="stat-row"><span>Majlis temperature</span><span class="v">${fmt(p.temp)} °C</span></div>
+     <div class="stat-row"><span>Sensors reporting</span><span class="v">${(p.sensors || 0).toLocaleString()}</span></div>
+     <div class="stat-row"><span>Open threshold alerts</span><span class="v ${p.alerts ? 'down' : 'up'}">${p.alerts ?? 0}</span></div>
+     <div class="stat-row"><span>Latest reading</span><span class="v">${ago(p.fresh)}</span></div>`);
+  const elapsed = p.lastPeriod ? (p.lastPeriod % 100) / 12 : 0.5;
+  $('f-sub').textContent = `AED million · ${periodLabel(p.lastPeriod)} closed`;
+  setHTML('f-opex', `${m(p.ytdAct)} <small>of ${m(p.ytdPlan)} plan</small>`);
+  $('f-opex-bar').style.width = Math.min(100, (100 * (p.ytdAct || 0)) / (p.fyPlan || 1)) + '%';
+  $('f-opex-bar').style.background = p.var > 4 ? 'var(--warn)' : 'var(--ink2)';
+  $('f-opex-mark').style.left = elapsed * 100 + '%';
+  setHTML('f-capex', `${m(p.drawn)} <small>of ${m(p.capex)} FY</small>`);
+  $('f-capex-bar').style.width = (p.drawPct || 0) + '%'; $('f-capex-mark').style.left = elapsed * 100 + '%';
+  $('f-fc').textContent = m(p.annual) + ' AED m';
+  setHTML('f-var', `<span class="${p.var > 4 ? 'amber' : p.var > 0 ? '' : 'up'}">${p.var >= 0 ? '+' : ''}${fmt(p.var)}%</span>`);
+  $('o-staff').textContent = (p.staff || 0).toLocaleString();
+  setHTML('o-mix', p.mix.map(([n, v]) => `<div class="stat-row"><span>${n}</span><span class="v">${v ?? 0}</span></div>`).join('') +
+    `<div class="stat-row"><span>Deployment vs roster</span><span class="v">${fmt(p.deploy)}%</span></div><div class="stat-row"><span>Reactive response (avg, 30d)</span><span class="v">${fmt(p.resp)} min</span></div>`);
+  setHTML('cafm-list', `<div class="stat-row"><span>PPM completion (90d)</span><span class="v">${fmt(p.ppm)}%</span></div>
+    <div class="stat-row"><span>Planned : reactive (12m)</span><span class="v">${p.planned == null ? '—' : Math.round(p.planned) + ' : ' + (100 - Math.round(p.planned))}</span></div>
+    <div class="stat-row"><span>SLA achievement (30d)</span><span class="v">${fmt(p.sla)}%</span></div>
+    <div class="stat-row"><span>Mean time to rectify</span><span class="v">${fmt(p.mttr)} hrs</span></div>
+    <div class="stat-row"><span>Open work orders</span><span class="v">${p.wo}</span></div>
+    <div class="stat-row"><span>Open P1 / P2</span><span class="v">${p.p1p2}</span></div>
+    <div class="stat-row"><span>Backlog &gt; 30 days</span><span class="v ${p.backlog > 8 ? 'amber' : ''}">${p.backlog}</span></div>`);
+  $('a-life').style.width = (p.goodFair || 0) + '%';
+  setHTML('asset-list', `<div class="stat-row"><span>Assets in good / fair condition</span><span class="v">${fmt(p.goodFair, 0)}%</span></div>
+    <div class="stat-row"><span>Tagged assets</span><span class="v">${(p.assets || 0).toLocaleString()}</span></div>
+    <div class="stat-row"><span>Condition index</span><span class="v">${fmt(p.cond, 0)}/100</span></div>
+    <div class="stat-row"><span>Critical assets under monitoring</span><span class="v">${(p.critMon || 0).toLocaleString()}</span></div>
+    <div class="stat-row"><span>Assets beyond expected life</span><span class="v">${(p.beyond || 0).toLocaleString()}</span></div>`);
+  if (p.water) {
+    setHTML('kpi-table', SERVICES.map((s, i) => { const score = Math.min(99, Math.max(80, s[3] + Math.round(((p.health || 89) - 89) * 0.5) + ((p.code.charCodeAt(4) + i) % 3) - 1)); const cls = score >= 93 ? 'sp-good' : score >= 87 ? 'sp-warn' : 'sp-crit'; return `<tr><td>${s[0]}</td><td style="color:var(--mute)">${s[1]}</td><td>${fmt(s[2])}%</td><td><span class="score-pill ${cls}">${score}</span></td></tr>`; }).join(''));
+    setHTML('comp-list', COMP.map((c) => `<div class="comp-item">${c[0]}<span class="st">${c[1]}</span></div>`).join(''));
+    const [wy, land] = p.water;
+    setHTML('p-util-stats', `<div class="stat-row"><span>Water — annual draw</span><span class="v">${fmt(wy, 0)}k m³</span></div><div class="stat-row"><span>Landscaping : household</span><span class="v">${Math.round(land * 100)} : ${Math.round((1 - land) * 100)}</span></div><div class="stat-row"><span>Water intensity (avg daily)</span><span class="v">${fmt((wy * 1000) / 365, 0)} m³/day</span></div><div class="stat-row"><span>Energy — year on year</span><span class="v up">${fmt(-(3 + ((p.health || 81) - 81) * 0.35))}%</span></div>`);
+  }
+}
+
+/* ---------- finance ---------- */
+function renderFinance() {
+  renderOpexChart('fin-opex-chart', true);
+  const rows = state.data.vw_finance_monthly || [];
+  const ytd = rows.filter((r) => r.opex_actual_aed != null);
+  const aY = ytd.reduce((a, r) => a + r.opex_actual_aed, 0), pY = ytd.reduce((a, r) => a + r.opex_plan_aed, 0), fy = rows.reduce((a, r) => a + r.opex_plan_aed, 0);
+  if (pY) setHTML('fin-opex-ytd', `<b>Cumulative YTD:</b> actual <b>${m(aY)}</b> vs plan <b>${m(pY)}</b> AED m · variance <span class="${aY > pY ? 'amber' : 'up'}" style="font-weight:600">${aY >= pY ? '+' : ''}${fmt(((aY - pY) / pY) * 100)}%</span> · FY plan ${m(fy, 0)} AED m`);
+  setHTML('fin-dim-table', dims().map((r) => `<tr><td>${esc(r.cost_dimension)}</td><td>${m(r.opex_ytd_plan_aed)}</td><td>${m(r.opex_ytd_actual_aed)}</td><td class="${r.var_pct > 2 ? 'amber' : r.var_pct > 0 ? '' : 'up'}">${r.var_pct >= 0 ? '+' : ''}${fmt(r.var_pct)}%</td></tr>`).join(''));
+  setHTML('fin-asset-table', P.map((p) => `<tr class="sel-row" data-code="${esc(p.code)}"><td><b>${esc(p.code)}</b></td><td>T${p.tier}</td><td>${m(p.fyPlan)}</td><td>${m(p.ytdAct)}</td><td class="${p.var > 4 ? 'amber' : p.var > 0 ? '' : 'up'}">${p.var >= 0 ? '+' : ''}${fmt(p.var)}%</td><td>${fmt(p.drawPct, 0)}%</td></tr>`).join(''));
+  const sp = P.find((p) => p.code === 'SP11136');
+  if (sp) {
+    const wf = [['Chiller-bank replacement (unplanned)', 1.9, 'var(--warn)'], ['Peak-season utilities', 0.28, 'var(--ink2)'], ['Materials & consumables', 0.11, 'var(--ink2)'], ['Labour', -0.09, 'var(--good)'], ['Subcontracts', -0.06, 'var(--good)']];
+    setHTML('fin-waterfall', wf.map(([n, v, c]) => `<div class="hb-row"><div class="hb-top"><span>${n}</span><span class="v">${v >= 0 ? '+' : ''}${fmt(v, 2)} m</span></div><div class="hb-track"><i style="width:${(Math.abs(v) / 1.9) * 100}%;background:${c}"></i></div></div>`).join('') +
+      `<div class="stat-row" style="margin-top:6px"><span><b>Net YTD variance (live)</b></span><span class="v amber">${m(sp.ytdAct - sp.ytdPlan, 2)} AED m (${sp.var >= 0 ? '+' : ''}${fmt(sp.var)}%)</span></div>`);
+  }
+}
+
+/* ---------- asset management ---------- */
+let amBuilt = false;
+function renderAM() {
+  const tot = P.reduce((a, p) => a + (p.assets || 0), 0);
+  const cond = tot ? P.reduce((a, p) => a + (p.cond || 0) * (p.assets || 0), 0) / tot : null;
+  const beyond = P.reduce((a, p) => a + (p.beyond || 0), 0), crit = P.reduce((a, p) => a + (p.critMon || 0), 0);
+  setHTML('am-kpis', [['Total Assets', tot.toLocaleString(), `${P.length} estates · tagged in CAFM`], ['Overall Condition Index', `${fmt(cond, 0)}<small>/100</small>`, 'Weighted by asset count'], ['Critical Under Monitoring', crit.toLocaleString(), 'Condition-monitored assets'], ['Beyond Expected Life', beyond.toLocaleString(), `${fmt(tot ? (100 * beyond) / tot : null)}% of register`]]
+    .map(([l, v, s]) => `<div class="kpi"><div class="k-label">${l}</div><div class="k-val">${v}</div><div class="k-sub">${s}</div></div>`).join(''));
+  if (amBuilt || state.client !== DEMO_CLIENT) return;
+  amBuilt = true;
+  hbars('am-freq', AM_FREQ, '', 'var(--taupe)');
+  setHTML('am-cond', AM_COND.map((r) => `<tr><td>${r[0]}</td><td>${r[1].toLocaleString()}</td><td class="up">${r[2]}%</td><td>${r[3]}%</td><td class="${r[4] > 9 ? 'amber' : ''}">${r[4]}%</td></tr>`).join(''));
+  setHTML('am-detail', AM_DETAIL.map((r) => `<tr><td>${r[0]}</td><td>${r[1].toLocaleString()}</td><td>${r[2]}</td><td><span class="score-pill ${r[3] >= 75 ? 'sp-good' : r[3] >= 60 ? 'sp-warn' : 'sp-crit'}">${r[3]}</span></td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td style="color:var(--mute)">${r[7]}</td></tr>`).join(''));
+  setHTML('st-table', STRAT.map((t, i) => `<tr class="sel-row" data-strat="${i}"><td><b>${t.c}</b></td><td style="color:var(--mute)">${t.d}</td><td><span class="pillst risk-${t.r.toLowerCase()}">${t.r}</span></td><td><span class="score-pill ${t.cond >= 75 ? 'sp-good' : t.cond >= 60 ? 'sp-warn' : 'sp-crit'}">${t.cond}</span></td><td>${t.life}</td><td>${t.open} open</td></tr>`).join(''));
+  setHTML('qa-list', QA_DEFAULT.map((r) => `<div class="qa-row"><span class="qa-text" contenteditable="true">${r[0]}</span><span class="qa-q">${r[1]}</span><button class="qa-st pillst ${r[2] === 'Completed' ? 'st-done' : r[2] === 'In Progress' ? 'st-risk' : 'st-ontrack'}" data-s="${r[2]}">${r[2]}</button></div>`).join(''));
+  showStrategy(0);
+}
+function showStrategy(i) {
+  const t = STRAT[i]; state.selStrat = i;
+  document.querySelectorAll('#st-table tr').forEach((r) => r.classList.toggle('selected', r.dataset.strat == i));
+  $('st-dd-title').textContent = t.c;
+  $('st-dd-sub').innerHTML = `${t.d} · <span class="pillst risk-${t.r.toLowerCase()}">${t.r}</span> · Remaining life ${t.life} · Condition ${t.cond}/100`;
+  const blk = (l, v) => `<div class="mini-label" style="margin-top:10px">${l}</div><p style="font-size:12.5px;color:var(--ink2);line-height:1.6">${v}</p>`;
+  $('st-dd').innerHTML = blk('Key volumes & condition', t.dd.vol) + blk('Key risks', t.dd.risks) + blk('Recommended strategic plan', t.dd.plan) + blk('Strategic impacts', t.dd.imp);
+}
+
+/* ---------- procurement ---------- */
+function renderProc() {
+  const s = (state.data.vw_procurement || [])[0];
+  if (s) setHTML('pr-kpis', [['Active Tenders', s.active_tenders, 'Moving through the 13-gate pipeline'], ['Overdue / At Risk', `<span class="${s.overdue_tenders + s.at_risk_tenders ? 'amber' : ''}">${s.overdue_tenders + s.at_risk_tenders}</span>`, `${s.overdue_tenders} overdue · ${s.at_risk_tenders} at risk`], ['Avg Cycle Time', s.avg_cycle_days == null ? '—' : `${s.avg_cycle_days}<small> days</small>`, 'Scope → go-live · completed tenders'], ['Value Under Procurement', `${m(s.pipeline_aed)}<small> AED m</small>`, `Awarded this year: ${m(s.awarded_ytd_aed)} AED m`]]
+    .map(([l, v, sub]) => `<div class="kpi"><div class="k-label">${l}</div><div class="k-val">${v}</div><div class="k-sub">${sub}</div></div>`).join(''));
+  const t = (state.data.vw_tender || []).slice().sort((a, b) => (a.status === 'Completed') - (b.status === 'Completed') || b.gates_passed - a.gates_passed);
+  if (!state.selTender || !t.some((x) => x.tender_ref === state.selTender)) state.selTender = t.length ? t[0].tender_ref : null;
+  setHTML('pr-table', t.map((x) => `<tr class="sel-row${x.tender_ref === state.selTender ? ' selected' : ''}" data-tender="${esc(x.tender_ref)}"><td><b>${esc(x.estate_code)}</b> · ${esc(x.scope)} <span class="mono" style="color:var(--mute)">${esc(x.tender_ref)}</span></td><td style="color:var(--mute)">${esc(x.category)}</td><td>${x.bidders}</td><td>${esc(x.last_milestone)}</td><td>${x.gates_passed}/13</td><td><span class="pillst ${stClass(x.status)}">${esc(x.status)}</span></td><td>AED ${m(x.est_value_aed)}m</td><td>${x.baseline_var_pct > 0 ? '+' : ''}${fmt(x.baseline_var_pct, 0)}%</td></tr>`).join(''));
+  const sel = t.find((x) => x.tender_ref === state.selTender);
+  if (!sel) return;
+  $('pr-dd-title').textContent = sel.scope;
+  $('pr-dd-sub').innerHTML = `${esc(sel.tender_ref)} · ${esc(sel.estate_code)} · AED ${m(sel.est_value_aed)}m · ${sel.bidders} bidders · <span class="pillst ${stClass(sel.status)}">${esc(sel.status)}</span>`;
+  const ev = new Map((state.data.vw_tender_gate || []).filter((g) => g.tender_ref === sel.tender_ref).map((g) => [g.gate_no, g]));
+  setHTML('pr-tl', GATES.map((name, i) => {
+    const g = i + 1, done = g <= sel.gates_passed, now = g === sel.gates_passed + 1 && sel.status !== 'Completed';
+    const e = ev.get(g);
+    return `<div class="tl-row ${done ? 'done' : now ? 'now' : ''}"><span class="tl-dot"></span><div class="tl-body"><span class="tl-name">${g}. ${name}</span><span class="tl-date">${done ? (e ? gstDate(utc(e.passed_at)) : 'passed') : now ? 'In progress' : 'Upcoming'}</span></div></div>`;
+  }).join(''));
+}
+
+/* ---------- projects ---------- */
+function renderWorks() {
+  const all = state.data.vw_works || [];
+  const open = all.filter((w) => w.status !== 'Completed');
+  const od = all.filter((w) => w.item_type === 'On-Demand' && w.resolution_days != null);
+  setHTML('wk-kpis', [['Projects', all.filter((w) => w.item_type === 'Project').length, 'Capital & compliance works'], ['On-Demand Works', all.filter((w) => w.item_type === 'On-Demand').length, 'Small out-of-scope requests'], ['Overdue / At Risk', `<span class="${open.some((w) => w.status !== 'On Track') ? 'amber' : ''}">${open.filter((w) => w.status !== 'On Track').length}</span>`, 'Across both streams'], ['Avg On-Demand Resolution', od.length ? `${fmt(od.reduce((a, w) => a + w.resolution_days, 0) / od.length)}<small> days</small>` : '—', 'Report to completion'], ['Value in Flight', `${m(open.reduce((a, w) => a + w.value_aed, 0), 2)}<small> AED m</small>`, 'Open items, not yet completed']]
+    .map(([l, v, sub]) => `<div class="kpi"><div class="k-label">${l}</div><div class="k-val">${v}</div><div class="k-sub">${sub}</div></div>`).join(''));
+  const rows = all.filter((w) => state.wkFilter === 'all' || w.item_type === state.wkFilter);
+  const kv = (v) => (v >= 1e6 ? fmt(v / 1e6, 2) + 'M' : Math.round(v / 1e3) + 'K');
+  setHTML('wk-table', rows.map((w) => `<tr class="sel-row${w.item_ref === state.selWork ? ' selected' : ''}" data-work="${esc(w.item_ref)}"><td><b>${esc(w.item_name)}</b></td><td style="color:var(--mute)">${esc(w.item_type)}</td><td>${esc(w.estate_code)}</td><td>${esc(w.current_stage)}</td><td>${w.stages_done}/${w.stage_total}</td><td><span class="pillst ${stClass(w.status)}">${esc(w.status)}</span></td><td>AED ${kv(w.value_aed)}</td></tr>`).join(''));
+  if (!state.selWork && rows.length) state.selWork = rows[0].item_ref;
+  const w = all.find((x) => x.item_ref === state.selWork);
+  if (!w) return;
+  $('wk-dd-title').textContent = w.item_name;
+  $('wk-dd-sub').innerHTML = `${esc(w.item_ref)} · ${esc(w.item_type)} · ${esc(w.estate_code)} · <span class="pillst ${stClass(w.status)}">${esc(w.status)}</span>`;
+  const st = w.item_type === 'Project' ? PROJ_ST : OD_ST, completed = w.stages_done >= w.stage_total;
+  setHTML('wk-tl', st.map((n, i) => {
+    const no = i + 1, done = completed || no < w.stages_done, now = !completed && no === w.stages_done;
+    const date = no === 1 ? gstDate(utc(w.reported_at)) : completed && no === st.length ? gstDate(utc(w.completed_at)) : done ? 'Done' : now ? 'Current' : 'Upcoming';
+    return `<div class="tl-row ${done ? 'done' : now ? 'now' : ''}"><span class="tl-dot"></span><div class="tl-body"><span class="tl-name">${n}</span><span class="tl-date">${date}</span></div></div>`;
+  }).join(''));
+}
+
+/* ---------- pipeline ---------- */
+function renderPipeline() {
+  const live = state.mode === 'live';
+  $('pipe-intro').textContent = live
+    ? STK.intro
+    : 'Emulated mode: the whole path below runs inside this page. It uses the same seed rows, the same view definitions and the same row-level rule as the SQL in the package, so switching client, or calling without a key, behaves as the deployed stack does.';
+  $('ft-ing').textContent = live ? STK.ing[0] : 'Emulated ingest';
+  if (live) {
+    $('fs-ing').textContent = STK.ing[1]; $('ft-sql').textContent = STK.sql;
+    $('ft-dab').textContent = STK.dab[0]; $('fs-dab').textContent = STK.dab[1];
+    $('fs-gw').textContent = STK.gw[1];
+  }
+  $('ft-gw').textContent = live ? STK.gw[0] : 'API Management';
+  const act = state.data.vw_activity || [], hl = state.data.vw_data_health || [];
+  const SHORT = { 'MRI CAFM': 'MRI', 'IoT / Event Hub': 'IoT', 'D365 HR + T&A': 'T&A', 'D365 F&O': 'F&O', 'D365 Projects': 'Proj' };
+  const per = hl.filter((h) => h.expected_cadence_min != null).map((h) => `${SHORT[h.source_system] || h.source_system} ${h.events_1h}`).join(' · ');
+  $('fv-src').textContent = per ? 'events/h: ' + per : '—';
+  $('fv-ing').textContent = act[0] ? `last: ${act[0].event_type} · ${gst(utc(act[0].ingested_at))}` : '—';
+  $('fv-sql').textContent = `RLS: client_code = ${state.client}`;
+  const recent = state.reqs.slice(0, 16), avg = recent.length ? Math.round(recent.reduce((a, r) => a + r.ms, 0) / recent.length) : 0;
+  $('fv-dab').textContent = `GET /api/… · avg ${avg} ms`;
+  $('fv-gw').textContent = `key → ${state.client} · ${state.reqs.filter((r) => r.status === 401).length} rejected`;
+  $('fv-portal').textContent = state.lastOk ? `refreshed ${gst(state.lastOk)}` : '—';
+  const SRC = (s) => SRC_COLOR[s] || 'var(--sand)';
+  const feed = $('feed');
+  feed.innerHTML = act.map((a) => `<div class="feed-row${a.event_id > state.lastEventId && state.lastEventId ? ' new' : ''}"><span class="ft">${gst(utc(a.ingested_at))}</span><span class="fs"><i style="background:${SRC(a.source_system)}"></i>${esc(a.source_system)}</span><span class="fd"><b>${esc(a.event_type)}</b>${a.estate_code ? ' · ' + esc(a.estate_code) : ''}${a.entity_ref ? ' · <span class="mono">' + esc(a.entity_ref) + '</span>' : ''}<br><span style="color:var(--mute)">${esc(a.detail)}</span></span></div>`).join('') || '<div class="feed-row"><span class="fd">No events yet.</span></div>';
+  if (act[0]) state.lastEventId = Math.max(state.lastEventId, act[0].event_id);
+  setHTML('health-table', hl.map((h) => `<tr><td>${esc(h.source_system)}</td><td style="color:var(--mute)">${esc(h.feed)}</td><td>${h.freshness_min == null ? '—' : ago(h.freshness_min)}</td><td><span class="pillst ${h.status === 'Fresh' ? 'st-ontrack' : h.status === 'Late' ? 'st-risk' : h.status === 'No digital source' ? 'st-overdue' : 'st-done'}">${esc(h.status)}</span></td></tr>`).join(''));
+  setHTML('req-table', state.reqs.slice(0, 14).map((r) => `<tr><td>${gst(r.t)}</td><td class="mono">${esc(r.method !== 'GET' ? r.method + ' ' : '')}${esc(r.path.split('?')[0])}</td><td class="${r.status === 200 ? 'up' : 'down'}">${r.status || 'ERR'}</td><td>${r.ms}</td><td>${r.rows ?? '—'}</td></tr>`).join(''));
+  if (!$('test-table').innerHTML) setHTML('test-table', TESTS.map((t, i) => `<tr><td>${t.name}</td><td>${t.expect}</td><td id="tg-${i}">—</td><td id="tp-${i}"></td></tr>`).join(''));
+}
+function onSourceEvent() {
+  if (state.view !== 'pipeline') return;
+  ['fn-src', 'fn-ing', 'fn-sql'].forEach((id, i) => setTimeout(() => { const el = $(id); el.classList.add('ping'); setTimeout(() => el.classList.remove('ping'), 500); }, i * 180));
+}
+const FORGED = { CL01: 'eyJhdXRoX3R5cCI6ImFhZCIsIm5hbWVfdHlwIjoibmFtZSIsInJvbGVfdHlwIjoicm9sZXMiLCJjbGFpbXMiOlt7InR5cCI6Im5hbWUiLCJ2YWwiOiJjbDAxLnZpZXdlckBwb3J0YWwuZGVtbyJ9LHsidHlwIjoicm9sZXMiLCJ2YWwiOiJjbGllbnRfcmVhZGVyIn0seyJ0eXAiOiJjbGllbnRfY29kZSIsInZhbCI6IkNMMDEifV19' };
+const codes = (r) => (r.body && r.body.value ? r.body.value.map((x) => x.estate_code) : []);
+const TESTS = [
+  { name: 'CL01 key reads estates', expect: '200 · 10 estates, all CL01', run: async () => { const r = await call('vw_estate', '', { key: KEYS.CL01, label: 'test' }); const c = codes(r); return [r.status === 200 && c.length === 10 && r.body.value.every((x) => x.client_code === 'CL01'), `${r.status} · ${c.length} estates`]; } },
+  { name: 'CL02 key reads estates', expect: '200 · 3 estates, all CL02', run: async () => { const r = await call('vw_estate', '', { key: KEYS.CL02, label: 'test' }); const c = codes(r); return [r.status === 200 && c.length === 3 && r.body.value.every((x) => x.client_code === 'CL02'), `${r.status} · ${c.length} estates`]; } },
+  { name: 'CL02 asks for a CL01 estate by filter', expect: '200 · 0 rows', run: async () => { const r = await call('vw_service_delivery', q({ $filter: "estate_code eq 'SP11021'" }), { key: KEYS.CL02, label: 'test' }); return [r.status === 200 && r.rows === 0, `${r.status} · ${r.rows ?? '—'} rows`]; } },
+  { name: 'CL02 key + forged CL01 identity headers', expect: '200 · still 3 CL02 estates', run: async () => { const r = await call('vw_estate', '', { key: KEYS.CL02, label: 'test', headers: { 'X-MS-CLIENT-PRINCIPAL': FORGED.CL01, 'X-MS-API-ROLE': 'client_reader', 'x-cip-client': 'CL01' } }); const c = codes(r); return [r.status === 200 && c.length === 3 && c.every((x) => x.startsWith('SP5')), `${r.status} · ${c.length} estates`]; } },
+  { name: 'No subscription key', expect: '401', run: async () => { const r = await call('vw_estate', '', { key: null, label: 'test' }); return [r.status === 401, String(r.status)]; } },
+  { name: 'Unknown key', expect: '401', run: async () => { const r = await call('vw_estate', '', { key: 'not-a-real-key', label: 'test' }); return [r.status === 401, String(r.status)]; } },
+  { name: 'Write attempt (POST)', expect: '403 · read-only', run: async () => { const r = await call('vw_estate', '', { key: KEYS.CL01, label: 'test', method: 'POST' }); return [r.status === 403 || r.status === 405, String(r.status)]; } },
+  { name: 'Table outside the contract', expect: '404 · not exposed', run: async () => { const r = await call('work_order', '', { key: KEYS.CL01, label: 'test' }); return [r.status === 404, String(r.status)]; } },
+];
+/* Supabase stack: go around the gateway and call the database's Data API
+   directly with the public key, claiming to be CL01. Without the gateway
+   secret the database returns nothing (or the browser blocks the call). */
+async function direct(path, headers) {
+  const sb = CFG.supabase, t0 = performance.now();
+  let status = 0, body = null;
+  try {
+    const res = await fetch(sb.url.replace(/\/$/, '') + '/rest/v1/' + path, { headers: Object.assign({ apikey: sb.key }, headers), cache: 'no-store' });
+    status = res.status; body = await res.json().catch(() => null);
+  } catch (e) { status = 0; }
+  const rows = Array.isArray(body) ? body.length : null;
+  state.reqs.unshift({ t: new Date(), entity: path, path: 'supabase:/rest/v1/' + path, method: 'GET', status, ms: Math.round(performance.now() - t0), rows, client: 'bypass' });
+  state.reqs.length = Math.min(state.reqs.length, 40);
+  return { status, rows };
+}
+if (state.mode === 'live' && CFG.supabase && CFG.supabase.url) {
+  TESTS.push(
+    { name: 'Bypass the gateway: Supabase directly as “CL01”', expect: '0 rows', run: async () => { const r = await direct('vw_estate?select=estate_code', { 'x-cip-client': 'CL01' }); return [r.rows === 0 || r.status === 0 || r.status === 401, r.status === 0 ? 'blocked by browser' : `${r.status} · ${r.rows ?? '—'} rows`]; } },
+    { name: 'Bypass + guessed gateway secret', expect: '0 rows', run: async () => { const r = await direct('vw_portfolio_kpi', { 'x-cip-client': 'CL01', 'x-cip-gateway': 'guess' }); return [r.rows === 0 || r.status === 0 || r.status === 401, r.status === 0 ? 'blocked by browser' : `${r.status} · ${r.rows ?? '—'} rows`]; } },
+    { name: 'Bypass: raw table directly', expect: '404 · not exposed', run: async () => { const r = await direct('work_order', {}); return [r.status === 404 || r.status === 0 || r.status === 401, r.status === 0 ? 'blocked by browser' : String(r.status)]; } },
+  );
+}
+async function runTests() {
+  if (!$('test-table').innerHTML) renderPipeline();
+  for (let i = 0; i < TESTS.length; i++) {
+    $('tg-' + i).textContent = '…'; $('tp-' + i).textContent = '';
+    const [ok, got] = await TESTS[i].run();
+    $('tg-' + i).textContent = got; $('tp-' + i).innerHTML = ok ? '<span class="pass">Pass</span>' : '<span class="fail">Fail</span>';
+  }
+  if (state.view === 'pipeline') renderPipeline();
+}
+
+/* ---------- definitions ---------- */
+function renderDefinitions() {
+  setHTML('contract-table', Object.entries(CONTRACT).map(([v, [g, mp, d]]) => `<tr><td class="mono"><button class="src" data-entity="${v}" style="font-family:var(--mono);text-transform:none;letter-spacing:0;font-size:11px"><i></i>${v}</button></td><td>${g}</td><td>${mp}</td><td style="color:var(--ink2)">${d}</td></tr>`).join(''));
+}
+
+/* ---------- trace drawer ---------- */
+let traceEntity = null;
+function openTrace(entity) { traceEntity = entity; $('trace').classList.add('open'); $('trace').setAttribute('aria-hidden', 'false'); renderTrace(); }
+function closeTrace() { $('trace').classList.remove('open'); $('trace').setAttribute('aria-hidden', 'true'); }
+function renderTrace() {
+  const e = traceEntity, meta = state.meta[e], rows = state.data[e] || [], c = CONTRACT[e] || ['—', '—', '—'];
+  $('tr-title').textContent = e;
+  const url = meta ? meta.path : '/api/' + e;
+  const sample = JSON.stringify({ value: rows.slice(0, 2) }, null, 2) + (rows.length > 2 ? `\n// … ${rows.length - 2} more row(s)` : '');
+  $('tr-body').innerHTML = `
+    <div class="stat-row"><span>Request</span><span class="v mono">GET ${esc(url)}</span></div>
+    <div class="stat-row"><span>Called as</span><span class="v">${esc(state.client)} · subscription key</span></div>
+    <div class="stat-row"><span>Status</span><span class="v ${meta && meta.status === 200 ? 'up' : 'down'}">${meta ? meta.status : '—'}</span></div>
+    <div class="stat-row"><span>Latency</span><span class="v">${meta ? meta.ms + ' ms' : '—'}</span></div>
+    <div class="stat-row"><span>Rows returned</span><span class="v">${rows.length}</span></div>
+    <div class="stat-row"><span>Fetched at</span><span class="v">${meta ? gst(meta.t) + ' GST' : '—'}</span></div>
+    <div class="tr-sec"><div class="mini-label">Contract</div><p style="font-size:12.5px;color:var(--ink2);margin-top:4px">${esc(c[2])}. Grain: ${esc(c[0])}. Mapping: ${esc(c[1])}. Source object <span class="mono">${STK.object}.${esc(e)}</span>; the database filters rows to the caller’s client before the API sees them.</p></div>
+    <div class="tr-sec"><div class="mini-label">Response (first rows)</div><pre class="json">${esc(sample)}</pre></div>`;
+}
+
+/* ------------------------------------------------------------ navigation */
+const VIEWS = ['overview', 'property', 'finance', 'assetmgmt', 'procurement', 'projects', 'pipeline', 'definitions'];
+const TITLES = { home: 'Portfolio Overview', finance: 'Finance', assetmgmt: 'Asset Management', procurement: 'Procurement', projects: 'Projects & On-Demand', pipeline: 'Data Pipeline', definitions: 'Definitions & Method' };
+function showView(v) {
+  VIEWS.forEach((x) => { $('view-' + x).hidden = x !== v; });
+  document.body.classList.remove('rail-open');
+  window.scrollTo({ top: 0 });
+}
+function showTab(tab) {
+  state.view = tab; state.property = null;
+  showView(tab === 'home' ? 'overview' : tab);
+  document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  $('crumb').textContent = 'Console'; $('page-title').textContent = TITLES[tab];
+  render();
+}
+function showProperty(code) {
+  state.view = 'property'; state.property = code;
+  showView('property');
+  document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.remove('active'));
+  render();
+}
+
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+  const src = t.closest('.src:not(.static)'); if (src) { openTrace(src.dataset.entity); return; }
+  const code = t.closest('[data-code]'); if (code) { showProperty(code.dataset.code); return; }
+  const tab = t.closest('#tabbar .tab'); if (tab) { showTab(tab.dataset.tab); return; }
+  const tr = t.closest('[data-tender]'); if (tr) { state.selTender = tr.dataset.tender; renderProc(); return; }
+  const wk = t.closest('[data-work]'); if (wk) { state.selWork = wk.dataset.work; renderWorks(); return; }
+  const st = t.closest('[data-strat]'); if (st) { showStrategy(+st.dataset.strat); return; }
+  const fc = t.closest('.fchip'); if (fc) { document.querySelectorAll('.fchip').forEach((x) => x.classList.toggle('active', x === fc)); state.wkFilter = fc.dataset.f; state.selWork = null; renderWorks(); return; }
+  const sb = t.closest('.subtab'); if (sb) { document.querySelectorAll('.subtab').forEach((x) => x.classList.toggle('active', x === sb)); $('am-life').hidden = sb.dataset.sub !== 'life'; $('am-strategy').hidden = sb.dataset.sub !== 'strategy'; return; }
+  const qa = t.closest('.qa-st'); if (qa) { const o = ['Planned', 'In Progress', 'Completed'], n = o[(o.indexOf(qa.dataset.s) + 1) % 3]; qa.dataset.s = n; qa.textContent = n; qa.className = 'qa-st pillst ' + (n === 'Completed' ? 'st-done' : n === 'In Progress' ? 'st-risk' : 'st-ontrack'); }
+});
+$('nav-overview').onclick = () => showTab('home');
+$('back-btn').onclick = () => showTab('home');
+$('srcpill').onclick = () => showTab('pipeline');
+$('menu-btn').onclick = () => document.body.classList.toggle('rail-open');
+$('scrim').onclick = () => document.body.classList.remove('rail-open');
+$('tr-close').onclick = closeTrace;
+$('t-run').onclick = runTests;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTrace(); });
+$('client-sel').onchange = (e) => {
+  state.client = e.target.value; state.data = {}; state.meta = {}; state.prev = {}; state.selTender = null; state.selWork = null; state.lastEventId = 0;
+  try { localStorage.setItem('cip.client', state.client); } catch (err) { /* storage unavailable */ }
+  if (state.view === 'property') state.view = 'home';
+  showTab(state.view);
+  refresh(true);
+};
+
+/* ----------------------------------------------------------------- boot */
+showTab('home');
+refresh(true);
+setInterval(() => { if (!document.hidden) refresh(false); }, 5000);
+</script>
+</body>
+</html>

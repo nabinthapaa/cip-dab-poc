@@ -1,0 +1,119 @@
+<!--
+  Azure API Management - API-level policy for the CIP data API (DAB backend).
+  The gateway/nginx.conf in this repo is the local stand-in for this policy.
+
+  Named values to create in APIM:
+    entra-tenant-id        Entra tenant that issues portal tokens
+    portal-client-app-id   app registration of the client portal (SPA)
+    dab-api-audience       App ID URI of the DAB API registration (also DAB_JWT_AUDIENCE)
+  Backend "dab-internal": the Container App's internal FQDN (internal ingress only).
+  Products/subscriptions: one subscription per client, named "client-<CODE>",
+  e.g. "client-CL01". Auditing: enable APIM diagnostics to Application Insights /
+  Log Analytics (request, response status, subscription, latency).
+-->
+<policies>
+    <inbound>
+        <base />
+
+        <!-- browsers: only the portal origin, read verbs only -->
+        <cors allow-credentials="false">
+            <allowed-origins>
+                <origin>https://portal.example.ae</origin>
+            </allowed-origins>
+            <allowed-methods preflight-result-max-age="600">
+                <method>GET</method>
+                <method>POST</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>Authorization</header>
+                <header>Ocp-Apim-Subscription-Key</header>
+                <header>Content-Type</header>
+            </allowed-headers>
+        </cors>
+
+        <!-- 1 · who is calling: Entra ID token for the portal user -->
+        <validate-azure-ad-token tenant-id="{{entra-tenant-id}}"
+                                 header-name="Authorization"
+                                 failed-validation-httpcode="401"
+                                 failed-validation-error-message="Unauthorized"
+                                 output-token-variable-name="jwt">
+            <client-application-ids>
+                <application-id>{{portal-client-app-id}}</application-id>
+            </client-application-ids>
+            <audiences>
+                <audience>{{dab-api-audience}}</audience>
+            </audiences>
+            <required-claims>
+                <claim name="roles" match="any">
+                    <value>client_reader</value>
+                </claim>
+            </required-claims>
+        </validate-azure-ad-token>
+
+        <!-- 2 · the token's client_code must match the subscription's client.
+                 A valid user of client A cannot use client B's key, and vice versa. -->
+        <set-variable name="tokenClient"
+                      value="@(((Jwt)context.Variables["jwt"]).Claims.GetValueOrDefault("client_code", ""))" />
+        <set-variable name="subscriptionClient"
+                      value="@(context.Subscription == null ? "" : context.Subscription.Name.Replace("client-", ""))" />
+        <choose>
+            <when condition="@(string.IsNullOrEmpty((string)context.Variables["tokenClient"]) || (string)context.Variables["tokenClient"] != (string)context.Variables["subscriptionClient"])">
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+                    <set-body>{"statusCode":403,"message":"Token client does not match subscription."}</set-body>
+                </return-response>
+            </when>
+        </choose>
+
+        <!-- 3 · read-only surface: GET on REST, POST on /graphql only -->
+        <choose>
+            <when condition="@(context.Request.Method != "GET" && !(context.Request.Method == "POST" && context.Request.Url.Path.EndsWith("/graphql")))">
+                <return-response>
+                    <set-status code="405" reason="Method Not Allowed" />
+                </return-response>
+            </when>
+        </choose>
+
+        <!-- 4 · protect the backend -->
+        <rate-limit-by-key calls="1200" renewal-period="60"
+                           counter-key="@(context.Subscription.Id)" />
+
+        <!-- 5 · cache per client. DAB turns its own cache off when session
+                 context is on, so caching lives here and must vary by client. -->
+        <cache-lookup vary-by-developer="true" vary-by-developer-groups="false"
+                      downstream-caching-type="none" must-revalidate="true" allow-private-response-caching="true">
+            <vary-by-header>Ocp-Apim-Subscription-Key</vary-by-header>
+            <vary-by-query-parameter>$filter</vary-by-query-parameter>
+            <vary-by-query-parameter>$orderby</vary-by-query-parameter>
+            <vary-by-query-parameter>$first</vary-by-query-parameter>
+            <vary-by-query-parameter>$select</vary-by-query-parameter>
+            <vary-by-query-parameter>$after</vary-by-query-parameter>
+        </cache-lookup>
+
+        <!-- 6 · forward: keep the bearer token (DAB re-validates it with the
+                 EntraID provider and passes its claims to SQL session context),
+                 never forward the key or any client-supplied principal -->
+        <set-header name="Ocp-Apim-Subscription-Key" exists-action="delete" />
+        <set-header name="X-MS-CLIENT-PRINCIPAL" exists-action="delete" />
+        <set-header name="X-MS-API-ROLE" exists-action="override">
+            <value>client_reader</value>
+        </set-header>
+        <set-backend-service backend-id="dab-internal" />
+    </inbound>
+
+    <backend>
+        <forward-request timeout="20" />
+    </backend>
+
+    <outbound>
+        <base />
+        <cache-store duration="5" />
+        <set-header name="Server" exists-action="delete" />
+        <set-header name="X-Powered-By" exists-action="delete" />
+    </outbound>
+
+    <on-error>
+        <base />
+    </on-error>
+</policies>

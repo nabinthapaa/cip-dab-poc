@@ -1,0 +1,11 @@
+{
+  "name": "cip-dab-poc",
+  "private": true,
+  "description": "Client Intelligence Portal live-read POC (Data API builder / Netlify + Supabase)",
+  "scripts": {
+    "dev": "node tools/dev-server.js"
+  },
+  "devDependencies": {
+    "@netlify/functions": "5.1.0"
+  }
+}
