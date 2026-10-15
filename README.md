@@ -98,10 +98,10 @@ Set up:
    |---|---|
    | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
    | `SUPABASE_PUBLISHABLE_KEY` | the project's `sb_publishable_…` key |
-   | `CIP_GATEWAY_SECRET` | the secret from step 1 (mark as secret) |
+   | `CIP_GATEWAY_SECRET` | the secret from step 1 — mark as secret; Netlify only accepts secret values for a specific deploy context (e.g. Production), not "All" |
    | `CIP_CLIENT_KEYS` | `cl01-demo-7f3a9c:CL01,cl02-demo-41be07:CL02` |
 
-3. Link this repository to the Netlify project (Project configuration → Build & deploy → Link repository). No build command is needed.
+3. Link this repository to the Netlify project (Project configuration → Build & deploy → Link repository). No build command is needed. Environment variables are read at deploy time, so redeploy after changing any of them.
 
 Stop the simulator with `select cron.unschedule('cip-simulator');`. Rebuild the demo data at any time with `select cip_ingest.seed_demo();`.
 
