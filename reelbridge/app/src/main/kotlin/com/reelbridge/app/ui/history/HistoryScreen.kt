@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.reelbridge.app.ui.AppViewModel
@@ -22,8 +23,8 @@ fun HistoryScreen(vm: AppViewModel, onOpenJob: (String) -> Unit) {
     val jobs by vm.jobs.collect()
     val progress by vm.uploadProgress.collect()
     val busy by vm.busy.collect()
-    var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
-    val visible = jobs.filter { filter.matches(it.status) }
+    var selected by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
+    val visible = jobs.filter { selected.matches(it.status) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Text("History", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp))
@@ -31,7 +32,7 @@ fun HistoryScreen(vm: AppViewModel, onOpenJob: (String) -> Unit) {
             items(HistoryFilter.entries) { f ->
                 val count = jobs.count { f.matches(it.status) }
                 FilterChip(
-                    selected = filter == f, onClick = { filter = f },
+                    selected = selected == f, onClick = { selected = f },
                     label = { Text("${f.name.lowercase().replaceFirstChar { it.uppercase() }} ($count)") },
                 )
             }

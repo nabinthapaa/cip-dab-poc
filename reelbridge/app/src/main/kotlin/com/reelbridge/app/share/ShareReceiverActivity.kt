@@ -13,7 +13,7 @@ import com.reelbridge.app.ReelBridgeApp
 import com.reelbridge.app.ui.theme.ReelBridgeTheme
 
 /**
- * Entry point for Android's share sheet (ACTION_SEND / ACTION_SEND_MULTIPLE with text/plain or video/*).
+ * Entry point for Android's share sheet (ACTION_SEND / ACTION_SEND_MULTIPLE with text/plain or any video MIME type).
  * Shared files are copied into private storage inside this activity, while the URI grant is valid.
  */
 class ShareReceiverActivity : ComponentActivity() {

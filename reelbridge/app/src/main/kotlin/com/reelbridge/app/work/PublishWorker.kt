@@ -14,6 +14,9 @@ import com.google.firebase.storage.StorageException
 import com.reelbridge.app.ReelBridgeApp
 import com.reelbridge.core.video.VideoValidator
 import java.io.File
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Step 1 of publishing, on the device: upload the authorized video to Firebase Storage and create
@@ -49,14 +52,17 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             val mime = draft.metadata.mimeType ?: "video/mp4"
             val path = c.uploader.storagePath(user.uid, key, mime)
-            var lastReported = -1
-            c.uploader.upload(File(draft.videoPath), path, mime, draft.sha256) { p ->
-                val pct = (p * 100).toInt()
-                if (pct != lastReported) {
-                    lastReported = pct
-                    setProgressAsync(workDataOf(PROGRESS to p))
-                    runCatching { setForegroundAsync(foregroundInfo(p)) }
+            val progress = MutableStateFlow(0)
+            coroutineScope {
+                // Report progress through the suspend APIs (percent steps only, conflated).
+                val reporter = launch {
+                    progress.collect { pct ->
+                        setProgress(workDataOf(PROGRESS to pct / 100f))
+                        runCatching { setForeground(foregroundInfo(pct / 100f)) }
+                    }
                 }
+                c.uploader.upload(File(draft.videoPath), path, mime, draft.sha256) { p -> progress.value = (p * 100).toInt() }
+                reporter.cancel()
             }
 
             // Duplicate prevention #2: atomic create-if-absent of publishing_jobs/{key}.
