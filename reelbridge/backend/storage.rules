@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Users may upload only their own videos, only MP4/MOV, only up to 1 GB, only at the
+// deterministic path users/{uid}/videos/{idempotencyKey}.{mp4|mov}.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/videos/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && fileName.matches('^[0-9a-f]{64}[.](mp4|mov)$')
+        && request.resource.size > 0
+        && request.resource.size <= 1024 * 1024 * 1024
+        && request.resource.contentType.matches('video/(mp4|quicktime)')
+        && request.resource.metadata.sha256 is string
+        && request.resource.metadata.sha256.matches('^[0-9a-f]{64}$');
+      allow delete: if false;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

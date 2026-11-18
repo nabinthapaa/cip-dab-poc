@@ -1,0 +1,99 @@
+rules_version = '2';
+
+// ReelBridge Firestore security rules.
+// - Every document is private to its owner (request.auth.uid).
+// - Meta tokens live in */secrets/* subcollections that NO client can read or write
+//   (Cloud Functions use the Admin SDK, which bypasses rules).
+// - Publishing status is written only by the backend; clients may only create a queued job.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isUser(uid) { return signedIn() && request.auth.uid == uid; }
+    function ownsExisting() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function isKey(id) { return id.matches('^[0-9a-f]{64}$'); }
+    function videoPath(uid, id) {
+      return request.resource.data.storagePath in [
+        'users/' + uid + '/videos/' + id + '.mp4',
+        'users/' + uid + '/videos/' + id + '.mov'
+      ];
+    }
+    function optString(data, field, max) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= max);
+    }
+
+    match /users/{uid} {
+      allow read: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['uid', 'autoPublish', 'captionTemplate', 'defaultHashtags', 'selectedPageId', 'updatedAt'])
+        && (!('autoPublish' in request.resource.data) || request.resource.data.autoPublish is bool)
+        && optString(request.resource.data, 'captionTemplate', 2200)
+        && optString(request.resource.data, 'defaultHashtags', 500)
+        && request.resource.data.get('uid', uid) == uid
+        // The destination Page is chosen through the backend only (it verifies Page access).
+        && request.resource.data.get('selectedPageId', null) == (resource == null ? null : resource.data.get('selectedPageId', null));
+      allow delete: if false;
+    }
+
+    match /facebook_connections/{uid} {
+      allow read: if isUser(uid);
+      allow write: if false;
+      match /secrets/{doc} { allow read, write: if false; }
+    }
+
+    match /facebook_pages/{docId} {
+      allow read: if ownsExisting();
+      allow write: if false;
+      match /secrets/{doc} { allow read, write: if false; }
+    }
+
+    match /reels/{reelId} {
+      allow read: if ownsExisting();
+      allow create: if signedIn() && isKey(reelId)
+        && request.resource.data.keys().hasOnly(['uid', 'source', 'storagePath', 'sha256', 'sizeBytes', 'durationMs', 'width', 'height', 'caption', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.source == 'device'
+        && videoPath(request.auth.uid, reelId)
+        && request.resource.data.sha256 is string && request.resource.data.sha256.matches('^[0-9a-f]{64}$')
+        && request.resource.data.sizeBytes is int && request.resource.data.sizeBytes > 0 && request.resource.data.sizeBytes <= 1073741824
+        && request.resource.data.durationMs is int && request.resource.data.width is int && request.resource.data.height is int
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 2200
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /publishing_jobs/{jobId} {
+      // "get" of a missing id is allowed so the app can check for duplicates before creating.
+      allow get: if signedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && isKey(jobId)
+        && request.resource.data.keys().hasOnly(['uid', 'reelId', 'pageId', 'pageName', 'caption', 'storagePath', 'source', 'status', 'attempts', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.reelId == jobId
+        && request.resource.data.source == 'device'
+        && request.resource.data.status == 'queued'
+        && request.resource.data.attempts == 0
+        && request.resource.data.pageId is string && request.resource.data.pageId.matches('^[0-9]{1,30}$')
+        && optString(request.resource.data, 'pageName', 200)
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 2200
+        && videoPath(request.auth.uid, jobId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        // The Page must be one the backend verified for this user, and the reel must be created with it.
+        && exists(/databases/$(database)/documents/facebook_pages/$(request.auth.uid + '_' + request.resource.data.pageId))
+        && getAfter(/databases/$(database)/documents/reels/$(jobId)).data.uid == request.auth.uid;
+      allow update: if false;
+      // Users may remove finished entries from their history.
+      allow delete: if ownsExisting() && resource.data.status in ['published', 'failed', 'needs_reconnect'];
+    }
+
+    match /publishing_logs/{logId} {
+      allow read: if ownsExisting();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

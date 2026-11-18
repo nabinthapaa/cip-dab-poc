@@ -1,0 +1,13 @@
+{
+  "name": "reelbridge-rules-tests",
+  "private": true,
+  "description": "Security rules tests. Run: npm test (starts the Firestore + Storage emulators).",
+  "scripts": {
+    "test": "firebase emulators:exec --project demo-reelbridge --config ../firebase.json --only firestore,storage \"node --test rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.4.0",
+    "firebase-tools": "^15.36.0"
+  }
+}

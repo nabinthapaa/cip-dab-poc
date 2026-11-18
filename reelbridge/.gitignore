@@ -20,3 +20,7 @@ backend/functions/.secret.local
 backend/functions/.env.*
 !backend/functions/.env.example
 backend/*.log
+backend/rules-tests/node_modules/
+backend/**/firebase-debug.log
+backend/**/firestore-debug.log
+backend/**/*-debug.log
