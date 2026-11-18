@@ -1,0 +1,22 @@
+.gradle/
+build/
+/local.properties
+/captures
+.idea/
+*.iml
+.DS_Store
+.kotlin/
+# Firebase client config is project specific – each developer downloads their own.
+/app/google-services.json
+# Signing material
+*.jks
+*.keystore
+keystore.properties
+# Backend
+backend/functions/node_modules/
+backend/functions/lib/
+backend/.firebaserc
+backend/functions/.secret.local
+backend/functions/.env.*
+!backend/functions/.env.example
+backend/*.log

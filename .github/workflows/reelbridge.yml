@@ -1,0 +1,70 @@
+name: ReelBridge
+
+on:
+  push:
+    paths:
+      - "reelbridge/**"
+      - ".github/workflows/reelbridge.yml"
+  pull_request:
+    paths:
+      - "reelbridge/**"
+  workflow_dispatch:
+
+concurrency:
+  group: reelbridge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android – test, lint, build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: reelbridge
+    env:
+      # Optional repository secrets. Without them the APK still builds; it shows "Setup required"
+      # (no Firebase) and disables Facebook Login (no App ID). Nothing is ever faked.
+      RB_FACEBOOK_APP_ID: ${{ secrets.RB_FACEBOOK_APP_ID }}
+      RB_FACEBOOK_CLIENT_TOKEN: ${{ secrets.RB_FACEBOOK_CLIENT_TOKEN }}
+      RB_FUNCTIONS_REGION: ${{ vars.RB_FUNCTIONS_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Write google-services.json (if configured)
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > app/google-services.json
+            echo "Firebase config: present"
+          else
+            echo "Firebase config: NOT configured (APK will show Setup required)"
+          fi
+      - name: Unit tests
+        run: ./gradlew --no-daemon :core:test :app:testDebugUnitTest
+      - name: Lint
+        run: ./gradlew --no-daemon :app:lintDebug
+      - name: Build APKs
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: reelbridge-apks
+          path: |
+            reelbridge/app/build/outputs/apk/debug/*.apk
+            reelbridge/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reelbridge-reports
+          path: |
+            reelbridge/core/build/reports
+            reelbridge/app/build/reports
+          if-no-files-found: ignore

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bridge arc over a play triangle, blue→purple. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M30,66 C30,44 78,44 78,66" android:strokeWidth="7" android:strokeLineCap="round" android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="30" android:startY="50" android:endX="78" android:endY="50">
+                <item android:offset="0" android:color="#FF4F8BFF" />
+                <item android:offset="1" android:color="#FFA56BFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M47,58 L47,74 L61,66 Z" android:fillColor="#FFFFFFFF" />
+</vector>

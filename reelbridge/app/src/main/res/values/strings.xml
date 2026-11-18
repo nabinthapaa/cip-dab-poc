@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ReelBridge</string>
+    <string name="share_target_label">Post to Facebook Reels</string>
+    <string name="channel_progress">Upload progress</string>
+    <string name="channel_results">Publishing results</string>
+</resources>
