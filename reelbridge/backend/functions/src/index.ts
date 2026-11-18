@@ -26,7 +26,7 @@ import { redact } from "./redact";
 import { FirestoreJobStore, FirestoreLogger, FirestoreTokenStore, StorageVideoStore } from "./store";
 
 initializeApp();
-setGlobalOptions({ region: process.env.FUNCTIONS_REGION || "us-central1", maxInstances: 20 });
+setGlobalOptions({ region: process.env.RB_REGION || "us-central1", maxInstances: 20 });
 
 
 const META_APP_SECRET = defineSecret("META_APP_SECRET");
@@ -202,7 +202,7 @@ export const retryPublishingJob = guarded("retryPublishingJob", async (req) => {
   return { queued: true };
 });
 
-const REGION = process.env.FUNCTIONS_REGION || "us-central1";
+const REGION = process.env.RB_REGION || "us-central1";
 
 /** Hands a job to the Cloud Tasks queue so long uploads never run inside a client request. */
 async function enqueueJob(jobId: string) {

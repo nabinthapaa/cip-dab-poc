@@ -1,0 +1,6 @@
+# Copy to local.properties (git-ignored). Android Studio also writes sdk.dir here.
+# Public Meta identifiers (Meta requires these in the app; they are NOT secrets).
+reelbridge.facebookAppId=
+reelbridge.facebookClientToken=
+# Must match the region the Cloud Functions are deployed to.
+reelbridge.functionsRegion=us-central1
