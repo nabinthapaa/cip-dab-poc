@@ -11,10 +11,14 @@ import kotlinx.coroutines.flow.callbackFlow
 
 /** Read-only, real-time view of the server-maintained Facebook connection state. */
 class FacebookRepository(private val db: FirebaseFirestore) {
+    companion object {
+        /** Local-only status: the connection document couldn't be read (offline, App Check, …). */
+        const val STATUS_ERROR = "read_error"
+    }
 
     fun connection(uid: String): Flow<FacebookConnection> = callbackFlow {
         val reg = db.collection("facebook_connections").document(uid).addSnapshotListener { snap, err ->
-            if (err != null) { trySend(FacebookConnection.NONE.copy(lastError = err.message)); return@addSnapshotListener }
+            if (err != null) { trySend(FacebookConnection.NONE.copy(status = STATUS_ERROR, lastError = err.message)); return@addSnapshotListener }
             trySend(snap?.takeIf { it.exists() }?.toConnection() ?: FacebookConnection.NONE)
         }
         awaitClose { reg.remove() }

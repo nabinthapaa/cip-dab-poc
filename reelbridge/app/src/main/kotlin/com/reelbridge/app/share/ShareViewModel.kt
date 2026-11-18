@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.reelbridge.app.AppContainer
 import com.reelbridge.app.data.BackendException
 import com.reelbridge.app.data.DraftTooLargeException
+import com.reelbridge.app.data.FacebookRepository
 import com.reelbridge.app.data.model.InspectedDraft
 import com.reelbridge.app.data.model.InstagramResolution
 import com.reelbridge.app.ui.AppViewModel
@@ -79,7 +80,7 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
         _state.value = ShareUiState.Working("Checking your Facebook Page…")
         val conn = withTimeoutOrNull(10_000) { c.facebook.connection(user.uid).first() }
         return when {
-            conn == null -> { _state.value = ShareUiState.Blocked("No connection", "Couldn't reach ReelBridge. Check your internet connection and share again."); null }
+            conn == null || conn.status == FacebookRepository.STATUS_ERROR -> { _state.value = ShareUiState.Blocked("No connection", "Couldn't reach ReelBridge. Check your internet connection and share again."); null }
             !conn.connected -> { _state.value = ShareUiState.Blocked("Reconnect Facebook", "Your Facebook connection needs attention. Open ReelBridge to reconnect.", openApp = true); null }
             conn.selectedPageId == null -> { _state.value = ShareUiState.Blocked("Choose a Page", "Open ReelBridge and choose which Facebook Page to publish to.", openApp = true); null }
             else -> Destination(user.uid, conn.selectedPageId, conn.selectedPageName ?: "your Page")
