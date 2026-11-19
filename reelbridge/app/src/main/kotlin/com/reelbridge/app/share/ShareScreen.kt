@@ -37,7 +37,7 @@ fun ShareScreen(vm: ShareViewModel, onClose: () -> Unit, onOpenApp: () -> Unit) 
                 when (s) {
                     is ShareUiState.Working -> Working(s.message)
                     is ShareUiState.Blocked -> Blocked(s, onClose, onOpenApp)
-                    is ShareUiState.ReviewVideos -> ReviewVideos(s, vm::publishVideos)
+                    is ShareUiState.ReviewVideos -> ReviewVideos(s, vm::setAddOutro, vm::publishVideos)
                     is ShareUiState.ReviewInstagram -> ReviewInstagram(s, vm::publishInstagram)
                     is ShareUiState.Done -> Done(s, onClose, onOpenApp)
                 }
@@ -91,13 +91,14 @@ private fun CaptionEditor(caption: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun ReviewVideos(s: ShareUiState.ReviewVideos, onPublish: (String) -> Unit) {
+private fun ReviewVideos(s: ShareUiState.ReviewVideos, onAddOutro: (Boolean) -> Unit, onPublish: (String) -> Unit) {
     var caption by rememberSaveable { mutableStateOf(s.caption) }
     Text("Review your Reel", style = MaterialTheme.typography.headlineSmall)
-    s.drafts.forEach { DraftCard(it) }
+    s.drafts.forEach { DraftCard(it, s.validationFor(it)) }
+    OutroRow(s, onAddOutro)
     CaptionEditor(caption) { caption = it }
     DestinationRow(s.pageName)
-    val publishable = s.drafts.count { it.validation.isPublishable }
+    val publishable = s.drafts.count { s.validationFor(it).isPublishable }
     GradientButton(
         if (publishable > 1) "Publish $publishable Reels" else "Publish Reel",
         { onPublish(caption) }, Modifier.fillMaxWidth(), enabled = publishable > 0, icon = Icons.Rounded.RocketLaunch,
@@ -105,7 +106,29 @@ private fun ReviewVideos(s: ShareUiState.ReviewVideos, onPublish: (String) -> Un
 }
 
 @Composable
-private fun DraftCard(d: InspectedDraft) {
+private fun OutroRow(s: ShareUiState.ReviewVideos, onAddOutro: (Boolean) -> Unit) {
+    val outro = s.outro
+    RBCard(Modifier.fillMaxWidth(), padding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (outro != null) {
+                Thumbnail(outro.thumbnailPath, Modifier.width(36.dp).aspectRatio(9f / 16f))
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Add outro", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (outro == null) "No outro saved. You can add one in Settings."
+                    else "Appends your ${formatDuration(outro.metadata.durationMs)} outro to the end.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = s.addOutro, onCheckedChange = onAddOutro, enabled = outro != null)
+        }
+    }
+}
+
+@Composable
+private fun DraftCard(d: InspectedDraft, validation: com.reelbridge.core.video.VideoValidation) {
     val m = d.draft.metadata
     RBCard(Modifier.fillMaxWidth(), padding = 12.dp) {
         Row {
@@ -117,7 +140,7 @@ private fun DraftCard(d: InspectedDraft) {
                 KeyValueRow("Size", formatBytes(m.sizeBytes))
                 KeyValueRow("Format", m.mimeType ?: "unknown")
                 Spacer(Modifier.height(6.dp))
-                if (d.validation.issues.isEmpty()) {
+                if (validation.errors.isEmpty() && validation.warnings.none { it.code != "reencode" }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = RB.Success, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
@@ -126,7 +149,7 @@ private fun DraftCard(d: InspectedDraft) {
                 }
             }
         }
-        d.validation.issues.forEach { issue ->
+        validation.issues.forEach { issue ->
             val error = issue.severity == com.reelbridge.core.video.Severity.ERROR
             InfoBanner(issue.message, Modifier.padding(top = 8.dp), color = if (error) RB.Error else RB.Warning,
                 icon = if (error) Icons.Rounded.ErrorOutline else Icons.Rounded.Warning)
@@ -148,6 +171,12 @@ private fun ReviewInstagram(s: ShareUiState.ReviewInstagram, onPublish: (String)
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+    if (s.outroSkipped) {
+        InfoBanner(
+            "Your outro can't be added to Reels imported from an Instagram link; this one is published as it is. To add the outro, share the video file instead.",
+            color = RB.Warning, icon = Icons.Rounded.Info,
+        )
     }
     CaptionEditor(caption) { caption = it }
     DestinationRow(s.pageName)

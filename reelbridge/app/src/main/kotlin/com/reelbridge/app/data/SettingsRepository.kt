@@ -19,6 +19,7 @@ class SettingsRepository(private val context: Context, private val remoteSync: s
         val TEMPLATE = stringPreferencesKey("caption_template")
         val HASHTAGS = stringPreferencesKey("default_hashtags")
         val NOTIFY = booleanPreferencesKey("notifications")
+        val OUTRO = booleanPreferencesKey("outro_enabled")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { p ->
@@ -27,6 +28,7 @@ class SettingsRepository(private val context: Context, private val remoteSync: s
             captionTemplate = p[Keys.TEMPLATE] ?: "{caption}",
             defaultHashtags = p[Keys.HASHTAGS] ?: "",
             notifications = p[Keys.NOTIFY] ?: true,
+            outroEnabled = p[Keys.OUTRO] ?: false,
         )
     }
 
@@ -39,6 +41,7 @@ class SettingsRepository(private val context: Context, private val remoteSync: s
             p[Keys.TEMPLATE] = next.captionTemplate
             p[Keys.HASHTAGS] = next.defaultHashtags
             p[Keys.NOTIFY] = next.notifications
+            p[Keys.OUTRO] = next.outroEnabled
         }
         runCatching { remoteSync(next) }
     }

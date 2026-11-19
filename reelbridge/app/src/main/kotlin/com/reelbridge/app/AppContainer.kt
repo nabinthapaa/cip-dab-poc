@@ -26,6 +26,7 @@ class AppContainer(private val context: Context) {
     val jobs by lazy { JobsRepository(firestore) }
     val uploader by lazy { VideoUploader(FirebaseStorage.getInstance()) }
     val drafts by lazy { DraftStore(context) }
+    val outros by lazy { OutroStore(context) }
     val queue by lazy { PublishQueue(context) }
 
     val settings by lazy {

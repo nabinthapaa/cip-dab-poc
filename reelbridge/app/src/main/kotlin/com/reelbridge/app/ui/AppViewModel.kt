@@ -9,6 +9,9 @@ import com.google.firebase.auth.FirebaseUser
 import com.reelbridge.app.AppContainer
 import com.reelbridge.app.ReelBridgeApp
 import com.reelbridge.app.data.BackendException
+import com.reelbridge.app.data.DraftTooLargeException
+import com.reelbridge.app.data.InvalidOutroException
+import com.reelbridge.app.data.Outro
 import com.reelbridge.app.data.model.*
 import com.reelbridge.app.facebook.FacebookLoginOutcome
 import com.reelbridge.app.facebook.facebookLogOut
@@ -38,6 +41,10 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val settings: StateFlow<UserSettings> = c.settings.settings.stateIn(viewModelScope, SharingStarted.Eagerly, UserSettings())
+
+    val outro: StateFlow<Outro?> = c.outros.outro
+
+    val uploadStages: StateFlow<Map<String, String>> = c.queue.uploadStages.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val uploadProgress: StateFlow<Map<String, Float>> = c.queue.uploadProgress.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
@@ -96,6 +103,26 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun updateSettings(transform: (UserSettings) -> UserSettings) = viewModelScope.launch { c.settings.update(transform) }
+
+    /** Saves a new outro picked by the user; keeps the old one if the new clip is unusable. */
+    fun setOutro(uri: android.net.Uri) = launchBusy {
+        try {
+            val (saved, validation) = c.outros.set(uri)
+            if (c.settings.current().outroEnabled.not()) c.settings.update { it.copy(outroEnabled = true) }
+            val warning = validation.warnings.firstOrNull()?.message
+            _messages.emit("Outro saved (${saved.metadata.durationMs / 1000.0}s).${warning?.let { " $it" } ?: ""}")
+        } catch (e: InvalidOutroException) {
+            _messages.emit(e.message ?: "That video can't be used as an outro.")
+        } catch (e: DraftTooLargeException) {
+            _messages.emit("The outro file is larger than 200 MB.")
+        }
+    }
+
+    fun removeOutro() {
+        c.outros.remove()
+        updateSettings { it.copy(outroEnabled = false) }
+        _messages.tryEmit("Outro removed.")
+    }
 
     fun draftStorageBytes(): Long = c.drafts.totalBytes()
     /** Removes local copies older than a day (pending uploads are newer and are kept). */

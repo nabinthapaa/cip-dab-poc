@@ -14,12 +14,13 @@ import java.util.concurrent.TimeUnit
 class PublishQueue(context: Context) {
     private val wm = WorkManager.getInstance(context)
 
-    fun enqueue(uid: String, draftId: String, sha256: String, caption: String, pageId: String, pageName: String?): String {
-        val key = IdempotencyKey.forVideo(uid, sha256, pageId)
+    fun enqueue(uid: String, draftId: String, sha256: String, caption: String, pageId: String, pageName: String?, outroSha256: String? = null): String {
+        val key = IdempotencyKey.forVideo(uid, IdempotencyKey.contentId(sha256, outroSha256), pageId)
         val request = OneTimeWorkRequestBuilder<PublishWorker>()
             .setInputData(workDataOf(
                 PublishWorker.KEY_JOB to key, PublishWorker.KEY_DRAFT to draftId, PublishWorker.KEY_CAPTION to caption,
                 PublishWorker.KEY_PAGE to pageId, PublishWorker.KEY_PAGE_NAME to pageName,
+                PublishWorker.KEY_OUTRO_SHA to outroSha256,
             ))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -50,6 +51,14 @@ class PublishQueue(context: Context) {
         list.filter { it.state == WorkInfo.State.RUNNING }.mapNotNull { info ->
             val job = info.tags.firstOrNull { it.startsWith("job:") }?.removePrefix("job:") ?: return@mapNotNull null
             job to info.progress.getFloat(PublishWorker.PROGRESS, 0f)
+        }.toMap()
+    }
+
+    /** What each running upload is doing ("Adding outro…" / "Uploading Reel…"). */
+    val uploadStages: Flow<Map<String, String>> = wm.getWorkInfosByTagFlow(TAG_PUBLISH).map { list ->
+        list.filter { it.state == WorkInfo.State.RUNNING }.mapNotNull { info ->
+            val job = info.tags.firstOrNull { it.startsWith("job:") }?.removePrefix("job:") ?: return@mapNotNull null
+            job to (info.progress.getString(PublishWorker.STAGE) ?: PublishWorker.UPLOADING)
         }.toMap()
     }
 

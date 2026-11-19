@@ -7,6 +7,9 @@ import com.reelbridge.app.AppContainer
 import com.reelbridge.app.data.BackendException
 import com.reelbridge.app.data.DraftTooLargeException
 import com.reelbridge.app.data.FacebookRepository
+import com.reelbridge.app.data.Outro
+import com.reelbridge.core.video.OutroRules
+import com.reelbridge.core.video.VideoValidation
 import com.reelbridge.app.data.model.InspectedDraft
 import com.reelbridge.app.data.model.InstagramResolution
 import com.reelbridge.app.ui.AppViewModel
@@ -24,8 +27,19 @@ sealed interface ShareUiState {
     data class Working(val message: String) : ShareUiState
     /** Cannot continue. [openApp] = the fix is inside ReelBridge (connect / choose Page). */
     data class Blocked(val title: String, val message: String, val openApp: Boolean = false) : ShareUiState
-    data class ReviewVideos(val drafts: List<InspectedDraft>, val caption: String, val pageName: String) : ShareUiState
-    data class ReviewInstagram(val url: String, val resolution: InstagramResolution, val caption: String, val pageName: String) : ShareUiState
+    data class ReviewVideos(
+        val drafts: List<InspectedDraft>,
+        val caption: String,
+        val pageName: String,
+        /** The saved outro, if any, and whether to add it by default. */
+        val outro: Outro? = null,
+        val addOutro: Boolean = false,
+    ) : ShareUiState {
+        /** Validation of each draft as it will actually be published (with or without the outro). */
+        fun validationFor(d: InspectedDraft): VideoValidation =
+            if (addOutro && outro != null) OutroRules.validateCombined(d.draft.metadata, outro.metadata) else d.validation
+    }
+    data class ReviewInstagram(val url: String, val resolution: InstagramResolution, val caption: String, val pageName: String, val outroSkipped: Boolean = false) : ShareUiState
     data class Done(val title: String, val message: String, val autoClose: Boolean) : ShareUiState
 }
 
@@ -60,8 +74,8 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
         val settings = c.settings.current()
 
         when (payload) {
-            is SharedPayload.Videos -> handleVideos(payload, dest, settings.autoPublish, settings.captionTemplate, settings.defaultHashtags)
-            is SharedPayload.InstagramLink -> handleInstagram(payload, dest, settings.autoPublish, settings.captionTemplate, settings.defaultHashtags)
+            is SharedPayload.Videos -> handleVideos(payload, dest, settings.autoPublish, settings.captionTemplate, settings.defaultHashtags, settings.outroEnabled)
+            is SharedPayload.InstagramLink -> handleInstagram(payload, dest, settings.autoPublish && !(settings.outroEnabled && c.outros.current() != null), settings.captionTemplate, settings.defaultHashtags, settings.outroEnabled && c.outros.current() != null)
             else -> Unit
         }
     }
@@ -87,7 +101,7 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    private suspend fun handleVideos(p: SharedPayload.Videos, d: Destination, auto: Boolean, template: String, tags: String) {
+    private suspend fun handleVideos(p: SharedPayload.Videos, d: Destination, auto: Boolean, template: String, tags: String, outroByDefault: Boolean) {
         val drafts = mutableListOf<InspectedDraft>()
         val problems = mutableListOf<String>()
         p.streams.forEachIndexed { i, s ->
@@ -107,23 +121,30 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
             return
         }
         val caption = CaptionBuilder.build(p.captionHint, template, tags)
-        if (auto && drafts.all { it.validation.isPublishable }) {
-            enqueue(drafts, caption, d, autoClose = true)
+        val outro = c.outros.current()
+        val review = ShareUiState.ReviewVideos(drafts, caption, d.pageName, outro, addOutro = outroByDefault && outro != null)
+        if (auto && drafts.all { review.validationFor(it).isPublishable }) {
+            enqueue(drafts, caption, d, review.outro.takeIf { review.addOutro }, autoClose = true)
         } else {
-            _state.value = ShareUiState.ReviewVideos(drafts, caption, d.pageName)
+            _state.value = review
         }
+    }
+
+    fun setAddOutro(add: Boolean) {
+        val s = _state.value as? ShareUiState.ReviewVideos ?: return
+        _state.value = s.copy(addOutro = add && s.outro != null)
     }
 
     fun publishVideos(caption: String) {
         val s = _state.value as? ShareUiState.ReviewVideos ?: return
         viewModelScope.launch {
             val d = destination() ?: return@launch
-            enqueue(s.drafts.filter { it.validation.isPublishable }, CaptionBuilder.truncate(caption), d, autoClose = false)
+            enqueue(s.drafts.filter { s.validationFor(it).isPublishable }, CaptionBuilder.truncate(caption), d, s.outro.takeIf { s.addOutro }, autoClose = false)
         }
     }
 
-    private fun enqueue(drafts: List<InspectedDraft>, caption: String, d: Destination, autoClose: Boolean) {
-        drafts.forEach { c.queue.enqueue(d.uid, it.draft.id, it.draft.sha256, caption, d.pageId, d.pageName) }
+    private fun enqueue(drafts: List<InspectedDraft>, caption: String, d: Destination, outro: Outro?, autoClose: Boolean) {
+        drafts.forEach { c.queue.enqueue(d.uid, it.draft.id, it.draft.sha256, caption, d.pageId, d.pageName, outro?.sha256) }
         val n = drafts.size
         _state.value = ShareUiState.Done(
             if (n == 1) "Publishing to ${d.pageName}" else "Publishing $n Reels to ${d.pageName}",
@@ -132,7 +153,7 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
         )
     }
 
-    private suspend fun handleInstagram(p: SharedPayload.InstagramLink, d: Destination, auto: Boolean, template: String, tags: String) {
+    private suspend fun handleInstagram(p: SharedPayload.InstagramLink, d: Destination, auto: Boolean, template: String, tags: String, outroWanted: Boolean) {
         _state.value = ShareUiState.Working("Looking for this Reel in your Instagram account…")
         val res = try {
             c.backend.resolveInstagramReel(p.url)
@@ -150,7 +171,7 @@ class ShareViewModel(private val c: AppContainer) : ViewModel() {
         }
         val caption = CaptionBuilder.build(res.caption, template, tags)
         if (auto) importInstagram(p.url, caption, d, autoClose = true)
-        else _state.value = ShareUiState.ReviewInstagram(p.url, res, caption, d.pageName)
+        else _state.value = ShareUiState.ReviewInstagram(p.url, res, caption, d.pageName, outroSkipped = outroWanted)
     }
 
     fun publishInstagram(caption: String) {

@@ -127,6 +127,10 @@ dependencies {
 
     implementation(libs.facebook.login)
 
+    implementation(libs.media3.transformer)
+    implementation(libs.media3.effect)
+    implementation(libs.media3.common)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.junit)

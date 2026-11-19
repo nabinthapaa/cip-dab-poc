@@ -14,6 +14,11 @@ import com.google.firebase.storage.StorageException
 import com.reelbridge.app.ReelBridgeApp
 import com.reelbridge.core.video.VideoValidator
 import java.io.File
+import com.reelbridge.app.media.OutroRenderException
+import com.reelbridge.app.media.OutroRenderer
+import com.reelbridge.app.media.VideoInspector
+import com.reelbridge.core.publish.IdempotencyKey
+import com.reelbridge.core.video.OutroRules
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -32,13 +37,17 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val caption = inputData.getString(KEY_CAPTION).orEmpty()
         val pageId = inputData.getString(KEY_PAGE) ?: return Result.failure()
         val pageName = inputData.getString(KEY_PAGE_NAME)
+        val outroSha = inputData.getString(KEY_OUTRO_SHA)
 
         val user = c.auth.currentUser ?: return fail("You are signed out. Open ReelBridge and connect Facebook again.")
         val draft = c.drafts.load(draftId) ?: return fail("The shared video is no longer available on this device.")
-        val validation = VideoValidator.validate(draft.metadata)
+        val outro = if (outroSha == null) null else c.outros.current()?.takeIf { it.sha256 == outroSha }
+            ?: return fail("Your outro was changed or removed after you shared this video. Share the video again.")
+        val validation = if (outro == null) VideoValidator.validate(draft.metadata) else OutroRules.validateCombined(draft.metadata, outro.metadata)
         if (!validation.isPublishable) return fail(validation.errors.joinToString(" ") { it.message })
+        val contentId = IdempotencyKey.contentId(draft.sha256, outro?.sha256)
 
-        runCatching { setForeground(foregroundInfo(null)) }
+        runCatching { setForeground(foregroundInfo(null, UPLOADING)) }
 
         return try {
             // Duplicate prevention #1: a job with this key already exists → nothing to do.
@@ -50,26 +59,34 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 return Result.success()
             }
 
-            val mime = draft.metadata.mimeType ?: "video/mp4"
-            val path = c.uploader.storagePath(user.uid, key, mime)
-            val progress = MutableStateFlow(0)
-            coroutineScope {
-                // Report progress through the suspend APIs (percent steps only, conflated).
-                val reporter = launch {
-                    progress.collect { pct ->
-                        setProgress(workDataOf(PROGRESS to pct / 100f))
-                        runCatching { setForeground(foregroundInfo(pct / 100f)) }
+            // Optional outro: render main + outro into one MP4 (kept across upload retries).
+            var file = File(draft.videoPath)
+            var meta = draft.metadata
+            var mime = draft.metadata.mimeType ?: "video/mp4"
+            if (outro != null) {
+                val rendered = File(file.parentFile, "with_outro.mp4")
+                val done = File(file.parentFile, "with_outro.done")
+                if (!done.exists()) {
+                    withProgress(RENDERING) { report ->
+                        OutroRenderer.render(applicationContext, file, meta.displayWidth, meta.displayHeight, File(outro.videoPath), rendered, report)
                     }
+                    done.createNewFile()
                 }
-                c.uploader.upload(File(draft.videoPath), path, mime, draft.sha256) { p -> progress.value = (p * 100).toInt() }
-                reporter.cancel()
+                file = rendered
+                meta = VideoInspector.inspect(rendered, "video/mp4")
+                mime = "video/mp4"
+                val check = VideoValidator.validate(meta)
+                if (!check.isPublishable) return fail("The video with outro can't be published: " + check.errors.joinToString(" ") { it.message })
             }
+
+            val path = c.uploader.storagePath(user.uid, key, mime)
+            withProgress(UPLOADING) { report -> c.uploader.upload(file, path, mime, contentId, report) }
 
             // Duplicate prevention #2: atomic create-if-absent of publishing_jobs/{key}.
             val created = c.jobs.createJobIfAbsent(
                 key = key, uid = user.uid, pageId = pageId, pageName = pageName, caption = caption,
-                storagePath = path, sha256 = draft.sha256, sizeBytes = draft.metadata.sizeBytes,
-                durationMs = draft.metadata.durationMs, width = draft.metadata.displayWidth, height = draft.metadata.displayHeight,
+                storagePath = path, sha256 = contentId, sizeBytes = meta.sizeBytes,
+                durationMs = meta.durationMs, width = meta.displayWidth, height = meta.displayHeight,
             )
             if (created) c.queue.watch(key)
             c.drafts.keepThumbnail(draft, key)
@@ -77,6 +94,7 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             Result.success(workDataOf(KEY_JOB to key))
         } catch (e: Exception) {
             Log.w(TAG, "Upload attempt $runAttemptCount failed: ${e.javaClass.simpleName}")
+            if (e is OutroRenderException) return fail(e.message ?: "Couldn't add the outro.")
             if (isTransient(e) && runAttemptCount < MAX_ATTEMPTS) Result.retry()
             else fail("Upload failed: ${e.message ?: e.javaClass.simpleName}")
         }
@@ -96,10 +114,28 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         return Result.failure(workDataOf(KEY_ERROR to message))
     }
 
-    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(null)
+    /** Runs [block], reporting its 0..1 progress to WorkManager and the notification (percent steps, conflated). */
+    private suspend fun withProgress(title: String, block: suspend (report: (Float) -> Unit) -> Unit) {
+        val progress = MutableStateFlow(0)
+        coroutineScope {
+            val reporter = launch {
+                progress.collect { pct ->
+                    setProgress(workDataOf(PROGRESS to pct / 100f, STAGE to title))
+                    runCatching { setForeground(foregroundInfo(pct / 100f, title)) }
+                }
+            }
+            try {
+                block { p -> progress.value = (p * 100).toInt().coerceIn(0, 100) }
+            } finally {
+                reporter.cancel()
+            }
+        }
+    }
 
-    private fun foregroundInfo(progress: Float?): ForegroundInfo {
-        val n = Notifications.progress(applicationContext, "Uploading Reel…", progress)
+    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(null, UPLOADING)
+
+    private fun foregroundInfo(progress: Float?, title: String): ForegroundInfo {
+        val n = Notifications.progress(applicationContext, title, progress)
         return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else ForegroundInfo(NOTIFICATION_ID, n)
     }
@@ -113,6 +149,10 @@ class PublishWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         const val KEY_CAPTION = "caption"
         const val KEY_PAGE = "page"
         const val KEY_PAGE_NAME = "pageName"
+        const val KEY_OUTRO_SHA = "outroSha"
+        const val STAGE = "stage"
+        const val RENDERING = "Adding outro…"
+        const val UPLOADING = "Uploading Reel…"
         const val KEY_ERROR = "error"
         const val PROGRESS = "progress"
     }

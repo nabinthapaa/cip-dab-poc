@@ -41,23 +41,8 @@ class DraftStore(private val context: Context) {
         val mime = resolver.getType(uri) ?: mimeHint
         val video = File(dir, if (mime == "video/quicktime") "video.mov" else "video.mp4")
 
-        val digest = MessageDigest.getInstance("SHA-256")
-        try {
-            val input = resolver.openInputStream(uri) ?: throw IOException("Cannot open the shared file")
-            input.use { inp ->
-                video.outputStream().use { out ->
-                    val buf = ByteArray(256 * 1024)
-                    var total = 0L
-                    while (true) {
-                        val n = inp.read(buf)
-                        if (n < 0) break
-                        total += n
-                        if (total > ReelSpecs.MAX_SIZE_BYTES) throw DraftTooLargeException()
-                        digest.update(buf, 0, n)
-                        out.write(buf, 0, n)
-                    }
-                }
-            }
+        val sha256 = try {
+            copyWithSha256(resolver, uri, video, ReelSpecs.MAX_SIZE_BYTES)
         } catch (e: Exception) {
             dir.deleteRecursively()
             throw e
@@ -67,7 +52,7 @@ class DraftStore(private val context: Context) {
         val thumb = File(dir, "thumb.jpg").takeIf { VideoInspector.writeThumbnail(video, it) }
         val draft = Draft(
             id = id, videoPath = video.absolutePath, thumbnailPath = thumb?.absolutePath,
-            sha256 = IdempotencyKey.hex(digest.digest()), metadata = metadata,
+            sha256 = sha256, metadata = metadata,
             captionHint = captionHint, createdAtMs = System.currentTimeMillis(),
         )
         save(draft)
@@ -133,3 +118,25 @@ class DraftStore(private val context: Context) {
         runCatching { resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
     }
 }
+
+/** Streams [uri] into [out] while hashing it. Throws [DraftTooLargeException] above [maxBytes]. */
+internal fun copyWithSha256(resolver: ContentResolver, uri: Uri, out: File, maxBytes: Long): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val input = resolver.openInputStream(uri) ?: throw IOException("Cannot open the shared file")
+    input.use { inp ->
+        out.outputStream().use { os ->
+            val buf = ByteArray(256 * 1024)
+            var total = 0L
+            while (true) {
+                val n = inp.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > maxBytes) throw DraftTooLargeException()
+                digest.update(buf, 0, n)
+                os.write(buf, 0, n)
+            }
+        }
+    }
+    return IdempotencyKey.hex(digest.digest())
+}
+

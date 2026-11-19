@@ -28,6 +28,7 @@ fun HomeScreen(vm: AppViewModel, onConnect: () -> Unit, onOpenJob: (String) -> U
     val jobs by vm.jobs.collect()
     val settings by vm.settings.collect()
     val progress by vm.uploadProgress.collect()
+    val stages by vm.uploadStages.collect()
 
     LazyColumn(
         Modifier.fillMaxSize().statusBarsPadding(),
@@ -104,7 +105,7 @@ fun HomeScreen(vm: AppViewModel, onConnect: () -> Unit, onOpenJob: (String) -> U
                     Thumbnail(null, Modifier.size(width = 40.dp, height = 54.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Uploading video… ${(p * 100).toInt()}%", style = MaterialTheme.typography.titleSmall)
+                        Text("${stages[id] ?: "Uploading Reel…"} ${(p * 100).toInt()}%", style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(progress = { p }, Modifier.fillMaxWidth())
                     }

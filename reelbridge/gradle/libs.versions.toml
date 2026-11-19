@@ -12,6 +12,7 @@ datastore = "1.1.7"
 coroutines = "1.10.2"
 firebaseBom = "33.14.0"
 facebook = "18.0.3"
+media3 = "1.5.1"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -45,6 +46,9 @@ firebase-storage = { module = "com.google.firebase:firebase-storage" }
 firebase-functions = { module = "com.google.firebase:firebase-functions" }
 firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 firebase-appcheck-debug = { module = "com.google.firebase:firebase-appcheck-debug" }
+media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3" }
+media3-effect = { module = "androidx.media3:media3-effect", version.ref = "media3" }
+media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
 facebook-login = { module = "com.facebook.android:facebook-login", version.ref = "facebook" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidxJunit" }

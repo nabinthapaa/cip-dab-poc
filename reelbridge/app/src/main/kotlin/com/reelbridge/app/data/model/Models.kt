@@ -53,6 +53,8 @@ data class UserSettings(
     val captionTemplate: String = "{caption}",
     val defaultHashtags: String = "",
     val notifications: Boolean = true,
+    /** Append the saved outro to Reels by default (can be changed per Reel before publishing). */
+    val outroEnabled: Boolean = false,
 )
 
 /** A video the user shared, copied into app-private storage. */

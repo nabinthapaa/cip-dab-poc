@@ -20,6 +20,18 @@ Page once, then share videos to ReelBridge from any app.
 | **An Instagram Reel link** (what Instagram's Share → ReelBridge sends) | Instagram only shares a link, never the video. ReelBridge asks the backend to find that Reel among the media of the **Instagram professional account linked to your Facebook Page**, using the official Instagram Graph API (`instagram_basic`). If it's your Reel, the backend copies it through the API and publishes it. If it isn't (or no account is linked), the app explains why and asks you to share the video file instead. |
 | A Story, image, plain text or another website's link | Shows a clear "can't use this" message. Nothing is published. |
 
+**Optional outro.** In Settings → Outro, pick a short clip (up to 15 s), such as a logo or a
+"Follow us" card. Choose whether it's added by default; you can still switch it off for a single Reel on
+the review screen. When it's on, the phone appends the outro with Media3 Transformer before uploading.
+
+- The Reel keeps the main video's size and aspect ratio. The outro is scaled to fit, with bars if its shape differs.
+- Encoding is H.264/AAC at a high bitrate, and silent audio is added when only one clip has sound.
+- The combined length must still be at most 90 s.
+- A video with the outro and the same video without it count as different posts. Re-sharing the same combination is
+  still caught as a duplicate.
+- Outros can't be added to Reels imported from an Instagram link, because that video never reaches the phone. The
+  review screen says so.
+
 With **Automatic publishing** on (Settings), a valid share is queued straight away and the share
 screen closes itself. With it off, you review the preview, caption and destination Page first.
 You get a notification when the Reel is live or if it fails.
@@ -158,9 +170,10 @@ Optional repository secrets: `RB_FACEBOOK_APP_ID`, `RB_FACEBOOK_CLIENT_TOKEN`, `
 
 | Area | How it's verified |
 |---|---|
-| Share classification, Instagram URL parsing, video validation, captions, idempotency keys, statuses, retry policy | `core` JUnit tests (29) |
+| Share classification, Instagram URL parsing, video validation, captions, idempotency keys, statuses, retry policy | `core` JUnit tests (35) |
 | Share intents on a real device: text, other links, Stories, images, videos, Instagram links; Setup-required path | Instrumented Compose tests on the emulator |
 | Copy + SHA-256 + MediaMetadataRetriever metadata + thumbnail + validation on real MP4 files | Instrumented tests with committed sample clips |
+| Outro: saving/replacing/removing, rendering main + outro (size kept, outro fitted, silent-audio fill, duration) | Instrumented tests running Media3 Transformer on the emulator; outro rules in `core` tests |
 | Graph API client and the START/UPLOAD/FINISH pipeline: success, processing hand-off, crash recovery, retries, token expiry, permission errors, invalid Page, Meta processing errors, hosted upload, token redaction, appsecret_proof | Backend tests (27) against an in-memory Meta fake that enforces the documented flow |
 | Firestore and Storage security rules | 13 tests on the real Firebase emulators |
 | **Real publishing to Facebook** | **Not verified.** It needs a Meta app, a Firebase project and a Page (see setup). The code follows Meta's documented flow, but no live post was made while building this. |
